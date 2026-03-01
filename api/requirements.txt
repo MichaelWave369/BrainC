@@ -5,3 +5,8 @@ aiosqlite>=0.20.0
 pydantic>=2.6.0
 sentence-transformers>=2.7.0
 numpy>=1.26.0
+# Fine-tuning / dataset utilities (v0.3)
+datasets>=2.18.0
+transformers>=4.40.0
+# NOTE: torch must be installed separately with the CUDA index URL:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
