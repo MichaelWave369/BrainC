@@ -1,6 +1,6 @@
 # BrainC
 
-**A fully local AI ecosystem by PHI369 Labs.**
+**BrainC is a project by PHI369 Labs, the technology division of Parallax.**
 
 BrainC is a production-quality, privacy-first AI assistant that runs entirely on your hardware. No API keys. No cloud dependencies. No data leaving your machine. It pairs a custom-tuned Ollama model (built on `qwen2.5:14b`) with a streaming FastAPI backend and a clean, minimal web interface.
 
@@ -8,7 +8,7 @@ BrainC is a production-quality, privacy-first AI assistant that runs entirely on
 
 ## What Is BrainC?
 
-BrainC is PHI369 Labs' local AI stack — designed to behave like a thoughtful, direct, non-sycophantic assistant rather than a default chatbot. The system prompt is carefully engineered to produce responses that are honest, prose-forward, and useful — with real pushback when needed.
+BrainC is a project by PHI369 Labs, the technology division of Parallax — designed to behave like a thoughtful, direct, non-sycophantic assistant rather than a default chatbot. The system prompt is carefully engineered to produce responses that are honest, prose-forward, and useful — with real pushback when needed.
 
 The architecture is intentionally simple: Ollama handles model inference, FastAPI handles the API and streaming, SQLite handles conversation memory, and a single-file web UI handles the interface. No Docker required. No cloud required. Just your GPU and a terminal.
 
@@ -176,4 +176,4 @@ This runs 10 curated prompts through the Ollama CLI and prints results for manua
 
 ## License
 
-PHI369 Labs internal project. All rights reserved.
+© 2026 Parallax — PHI369 Labs Division. All Rights Reserved. Proprietary and confidential.
