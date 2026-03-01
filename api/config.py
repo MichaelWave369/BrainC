@@ -1,0 +1,5 @@
+# BrainC configuration — PHI369 Labs
+
+MAX_TURNS_BEFORE_SUMMARY = 20
+EMBEDDING_MODEL = "all-MiniLM-L6-v2"
+TOP_K_SEMANTIC = 3

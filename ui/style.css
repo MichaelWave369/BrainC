@@ -20,6 +20,7 @@
   --user-bubble: #1e2a45;
   --assistant-bubble: #141414;
   --scrollbar-thumb: #2a2a2a;
+  --sidebar-width: 240px;
   --font-mono: "JetBrains Mono", "Fira Code", "Cascadia Code", monospace;
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
@@ -34,16 +35,141 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── Root wrapper ─────────────────────────────── */
+
+#wrapper {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Sidebar ──────────────────────────────────── */
+
+#sidebar {
+  width: var(--sidebar-width);
+  flex-shrink: 0;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.sidebar-logo {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  color: var(--text-primary);
+}
+
+#new-chat-btn {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: rgba(110, 142, 251, 0.08);
+  border: 1px solid rgba(110, 142, 251, 0.2);
+  padding: 4px 9px;
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+
+#new-chat-btn:hover {
+  background: rgba(110, 142, 251, 0.16);
+  border-color: rgba(110, 142, 251, 0.4);
+}
+
+#conv-list {
+  flex: 1;
+  overflow-y: auto;
+  padding: 8px 0;
+}
+
+#conv-list::-webkit-scrollbar { width: 4px; }
+#conv-list::-webkit-scrollbar-track { background: transparent; }
+#conv-list::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 10px;
+}
+
+.conv-item {
+  padding: 9px 14px;
+  cursor: pointer;
+  border-radius: 6px;
+  margin: 2px 6px;
+  transition: background 0.12s;
+  user-select: none;
+}
+
+.conv-item:hover {
+  background: var(--bg-surface);
+}
+
+.conv-item.active {
+  background: rgba(110, 142, 251, 0.1);
+  border: 1px solid rgba(110, 142, 251, 0.18);
+}
+
+.conv-title {
+  font-size: 12px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.4;
+}
+
+.conv-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.conv-time {
+  font-size: 10px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+
+.conv-tag {
+  font-size: 9px;
+  font-family: var(--font-mono);
+  color: var(--accent);
+  background: rgba(110, 142, 251, 0.1);
+  border: 1px solid rgba(110, 142, 251, 0.2);
+  padding: 1px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.2px;
+}
+
+.sidebar-empty {
+  padding: 20px 14px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  text-align: center;
+}
+
 /* ── Layout ───────────────────────────────────── */
 
 #app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
-  max-width: 860px;
-  margin: 0 auto;
-  border-left: 1px solid var(--border);
-  border-right: 1px solid var(--border);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
 }
 
 /* ── Header ───────────────────────────────────── */
@@ -324,17 +450,6 @@ header {
   color: var(--text-muted);
 }
 
-#conversation-select {
-  font-size: 11px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  color: var(--text-secondary);
-  border-radius: 5px;
-  padding: 3px 6px;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  outline: none;
-}
 
 /* ── Status bar ───────────────────────────────── */
 
@@ -356,8 +471,8 @@ header {
 /* ── Mobile ───────────────────────────────────── */
 
 @media (max-width: 640px) {
-  #app {
-    border: none;
+  #sidebar {
+    display: none;
   }
 
   header {
@@ -370,9 +485,5 @@ header {
 
   #input-area {
     padding: 12px 16px;
-  }
-
-  .logo {
-    font-size: 16px;
   }
 }

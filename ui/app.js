@@ -9,7 +9,8 @@ const messageInput = document.getElementById("message-input");
 const sendBtn = document.getElementById("send-btn");
 const clearBtn = document.getElementById("clear-btn");
 const statusBar = document.getElementById("status-bar");
-const conversationSelect = document.getElementById("conversation-select");
+const newChatBtn = document.getElementById("new-chat-btn");
+const convList = document.getElementById("conv-list");
 
 let isStreaming = false;
 let currentConversationId = "default";
@@ -22,8 +23,28 @@ function setStatus(text, isError = false) {
 }
 
 function clearStatus() {
-  statusBar.textContent = "PHI369 Labs · BrainC v0.1.0 · offline-capable";
+  statusBar.textContent = "PHI369 Labs · BrainC v0.2.0 · offline-capable";
   statusBar.className = "";
+}
+
+function generateId() {
+  return crypto.randomUUID
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
+function formatRelativeTime(isoString) {
+  const date = new Date(isoString);
+  const now = Date.now();
+  const diff = now - date.getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 7) return `${days}d ago`;
+  return date.toLocaleDateString();
 }
 
 function escapeHtml(text) {
@@ -101,6 +122,73 @@ function appendStreamingMessage() {
 
   scrollToBottom();
   return contentEl;
+}
+
+// ── Sidebar — conversation list ─────────────────────────────
+
+async function loadConversations() {
+  try {
+    const res = await fetch(`${API_BASE}/conversations`);
+    if (!res.ok) return;
+    const conversations = await res.json();
+    renderConversationList(conversations);
+  } catch (_) {
+    // Non-fatal; sidebar just stays empty
+  }
+}
+
+function renderConversationList(conversations) {
+  convList.innerHTML = "";
+
+  if (!conversations.length) {
+    const el = document.createElement("div");
+    el.className = "sidebar-empty";
+    el.textContent = "No conversations yet";
+    convList.appendChild(el);
+    return;
+  }
+
+  for (const conv of conversations) {
+    const item = document.createElement("div");
+    item.className = "conv-item" + (conv.id === currentConversationId ? " active" : "");
+    item.dataset.id = conv.id;
+
+    const titleEl = document.createElement("div");
+    titleEl.className = "conv-title";
+    titleEl.textContent = conv.title;
+
+    const metaEl = document.createElement("div");
+    metaEl.className = "conv-meta";
+
+    const timeEl = document.createElement("span");
+    timeEl.className = "conv-time";
+    timeEl.textContent = formatRelativeTime(conv.updated_at);
+    metaEl.appendChild(timeEl);
+
+    if (conv.tags && conv.tags.length > 0) {
+      for (const tag of conv.tags) {
+        const tagEl = document.createElement("span");
+        tagEl.className = "conv-tag";
+        tagEl.textContent = tag;
+        metaEl.appendChild(tagEl);
+      }
+    }
+
+    item.appendChild(titleEl);
+    item.appendChild(metaEl);
+
+    item.addEventListener("click", () => switchConversation(conv.id));
+    convList.appendChild(item);
+  }
+}
+
+function switchConversation(id) {
+  currentConversationId = id;
+  // Update active highlight without a full re-render
+  [...convList.querySelectorAll(".conv-item")].forEach(el => {
+    el.classList.toggle("active", el.dataset.id === id);
+  });
+  loadHistory();
 }
 
 // ── History loading ────────────────────────────────────────
@@ -181,6 +269,8 @@ async function sendMessage(text) {
 
     streamEl.classList.remove("streaming-cursor");
     clearStatus();
+    // Refresh sidebar so new conversation title appears
+    await loadConversations();
   } catch (err) {
     streamEl.classList.remove("streaming-cursor");
     streamEl.textContent = `[Connection error] ${err.message}`;
@@ -211,28 +301,26 @@ async function clearHistory() {
     chatContainer.appendChild(emptyState);
     emptyState.style.display = "";
     clearStatus();
+    await loadConversations();
   } catch (err) {
     setStatus(`Clear failed: ${err.message}`, true);
   }
 }
 
-// ── Conversation switching ─────────────────────────────────
+// ── New chat ───────────────────────────────────────────────
 
-function addConversationOption(id) {
-  const existing = [...conversationSelect.options].some(o => o.value === id);
-  if (!existing) {
-    const opt = document.createElement("option");
-    opt.value = id;
-    opt.textContent = id;
-    conversationSelect.appendChild(opt);
-  }
-  conversationSelect.value = id;
+function newChat() {
+  currentConversationId = generateId();
+  chatContainer.innerHTML = "";
+  chatContainer.appendChild(emptyState);
+  emptyState.style.display = "";
+  clearStatus();
+  // Deselect any active item; sidebar will refresh after first message
+  [...convList.querySelectorAll(".conv-item")].forEach(el =>
+    el.classList.remove("active")
+  );
+  messageInput.focus();
 }
-
-conversationSelect.addEventListener("change", () => {
-  currentConversationId = conversationSelect.value;
-  loadHistory();
-});
 
 // ── Auto-resize textarea ───────────────────────────────────
 
@@ -262,11 +350,11 @@ messageInput.addEventListener("keydown", (e) => {
 });
 
 clearBtn.addEventListener("click", clearHistory);
+newChatBtn.addEventListener("click", newChat);
 
 // ── Init ───────────────────────────────────────────────────
 
 (async function init() {
-  addConversationOption("default");
-  await loadHistory();
+  await Promise.all([loadHistory(), loadConversations()]);
   messageInput.focus();
 })();
