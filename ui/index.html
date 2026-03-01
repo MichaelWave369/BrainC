@@ -7,56 +7,67 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-  <div id="app">
+  <div id="wrapper">
 
-    <!-- Header -->
-    <header>
-      <div class="header-left">
-        <span class="logo">BrainC</span>
-        <span class="model-badge">qwen2.5:14b · local</span>
+    <!-- Left sidebar -->
+    <aside id="sidebar">
+      <div class="sidebar-header">
+        <span class="sidebar-logo">BrainC</span>
+        <button id="new-chat-btn" title="Start a new conversation">+ New Chat</button>
       </div>
-      <div class="header-right">
-        <button id="clear-btn" title="Clear conversation">Clear Chat</button>
+      <div id="conv-list">
+        <!-- Populated by app.js -->
       </div>
-    </header>
+    </aside>
 
-    <!-- Chat messages -->
-    <div id="chat-container">
-      <div id="empty-state">
-        <div class="empty-title">BrainC</div>
-        <div class="empty-sub">A local AI by PHI369 Labs. Everything runs on your machine.</div>
+    <!-- Main chat area -->
+    <div id="app">
+
+      <!-- Header -->
+      <header>
+        <div class="header-left">
+          <span class="model-badge">qwen2.5:14b · local</span>
+        </div>
+        <div class="header-right">
+          <button id="clear-btn" title="Clear conversation">Clear Chat</button>
+        </div>
+      </header>
+
+      <!-- Chat messages -->
+      <div id="chat-container">
+        <div id="empty-state">
+          <div class="empty-title">BrainC</div>
+          <div class="empty-sub">A local AI by PHI369 Labs. Everything runs on your machine.</div>
+        </div>
       </div>
-    </div>
 
-    <!-- Input -->
-    <div id="input-area">
-      <form id="input-form">
-        <textarea
-          id="message-input"
-          placeholder="Message BrainC..."
-          rows="1"
-          autocomplete="off"
-          spellcheck="true"
-        ></textarea>
-        <button type="submit" id="send-btn" title="Send message">
-          <svg viewBox="0 0 24 24">
-            <line x1="22" y1="2" x2="11" y2="13"></line>
-            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-          </svg>
-        </button>
-      </form>
-      <div class="input-meta">
-        <span class="hint">Enter to send · Shift+Enter for new line</span>
-        <select id="conversation-select" title="Switch conversation">
-          <option value="default">default</option>
-        </select>
+      <!-- Input -->
+      <div id="input-area">
+        <form id="input-form">
+          <textarea
+            id="message-input"
+            placeholder="Message BrainC..."
+            rows="1"
+            autocomplete="off"
+            spellcheck="true"
+          ></textarea>
+          <button type="submit" id="send-btn" title="Send message">
+            <svg viewBox="0 0 24 24">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          </button>
+        </form>
+        <div class="input-meta">
+          <span class="hint">Enter to send · Shift+Enter for new line</span>
+        </div>
       </div>
-    </div>
 
-    <!-- Status -->
-    <div id="status-bar">PHI369 Labs · BrainC v0.1.0 · offline-capable</div>
+      <!-- Status -->
+      <div id="status-bar">PHI369 Labs · BrainC v0.2.0 · offline-capable</div>
 
-  </div>
+    </div><!-- /#app -->
+  </div><!-- /#wrapper -->
 
   <script src="app.js"></script>
 </body>

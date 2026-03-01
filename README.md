@@ -2,6 +2,23 @@
 
 **BrainC is a project by PHI369 Labs, the technology division of Parallax.**
 
+---
+
+## Changelog
+
+### v0.2.0 — Memory Expansion ✅
+- **Semantic search** over conversation history using `all-MiniLM-L6-v2` (local, no API key). Embeddings stored as BLOBs in SQLite. Top-3 relevant past exchanges injected into every prompt.
+- New route: `GET /search?q=<query>` — returns semantically similar past messages.
+- **Context window management** — conversations exceeding 20 turns trigger automatic summarization of the oldest 10 turns via BrainC itself. Summary stored with `role: "summary"` and injected at the start of the context window.
+- **Conversation metadata** — new `conversations` table with `id`, `title`, `created_at`, `updated_at`, `tags`. Titles auto-generated from the first 6 words of the opening message.
+- New routes: `GET /conversations`, `PATCH /conversations/{id}`, `DELETE /conversations/{id}`.
+- **UI sidebar** — left panel showing conversation list with titles, relative timestamps, and tag badges. "New Chat" button starts a fresh session. Clicking a conversation loads it.
+
+### v0.1.0 — Initial Scaffold
+- FastAPI backend with streaming chat and SQLite memory.
+- Custom `braincbrain` model via Ollama (qwen2.5:14b base).
+- Dark minimal web UI with conversation switching.
+
 BrainC is a production-quality, privacy-first AI assistant that runs entirely on your hardware. No API keys. No cloud dependencies. No data leaving your machine. It pairs a custom-tuned Ollama model (built on `qwen2.5:14b`) with a streaming FastAPI backend and a clean, minimal web interface.
 
 ---
@@ -91,6 +108,10 @@ Responses are streamed token-by-token from Ollama through the FastAPI `Streaming
 | `POST` | `/chat` | Send a message, stream the response |
 | `GET` | `/history` | Get conversation history |
 | `DELETE` | `/history` | Clear conversation history |
+| `GET` | `/search?q=` | Semantic search over all past messages |
+| `GET` | `/conversations` | List all conversations with metadata |
+| `PATCH` | `/conversations/{id}` | Update title or tags |
+| `DELETE` | `/conversations/{id}` | Delete a conversation and its messages |
 | `GET` | `/health` | Health check |
 | `GET` | `/docs` | Interactive API docs (Swagger UI) |
 
@@ -147,7 +168,7 @@ This runs 10 curated prompts through the Ollama CLI and prints results for manua
 
 ## Roadmap
 
-**v0.2 — Memory Expansion**
+**v0.2 — Memory Expansion** ✅ _complete_
 - Semantic search over conversation history using local embeddings
 - Configurable context window management (summarize old turns)
 - Per-conversation metadata and tagging
