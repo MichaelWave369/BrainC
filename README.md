@@ -6,6 +6,19 @@
 
 ## Changelog
 
+### v0.4.0 — API Integrations ✅
+- **Web search** (`api/tools/search.py`) — SearXNG metasearch integration. Runs a local Docker container at port 8080; keyword-triggered automatically from chat messages. See `tools/searxng/` for setup.
+- **Code execution sandbox** (`api/tools/executor.py`) — AST-based safety checker blocks dangerous imports (`os`, `subprocess`, `socket`, …) and write-mode `open()` calls; executes Python in a subprocess with a 10-second timeout.
+- **File reader** (`api/tools/file_reader.py`) — Reads files from `~/BrainC/workspace/`; path-traversal protected via `Path.resolve()`. Supports text, code, JSON (pretty-printed + validated), and CSV (with preview).
+- **Notes & calendar** (`api/tools/notes.py`) — Markdown notes stored in `workspace/notes/`; JSON calendar events stored in `workspace/calendar.json`. Full CRUD via `/tools/notes` and `/tools/calendar`.
+- **Tool routes** (`api/routes/tools.py`) — FastAPI router exposing all tools as REST endpoints.
+- **Tool detection in chat** — `_detect_and_run_tool()` pattern-matches chat messages to trigger the appropriate tool automatically. Tool results injected as `[TOOL RESULT]` system context. `tools_enabled` flag in the chat request body lets the UI toggle tool use per-message.
+- **MCP server** (`api/mcp/server.py`) — Standard `GET /mcp/tools` + `POST /mcp/call` endpoints exposing `braincbrain_search`, `braincbrain_execute`, and `braincbrain_read_file` with JSON schemas.
+- **MCP client** (`api/mcp/client.py`) — Connects to external MCP servers listed in `api/mcp/config.json`. Add servers with `"enabled": true` to aggregate their tools.
+- **UI: tool activity panel** — Expandable panel below the header shows which tool ran and its raw result. Green badge in header indicates active tool.
+- **UI: notes sidebar** — Notes list displayed in sidebar; "+ " button opens a modal to create a new note with title and markdown content.
+- **UI: tools toggle** — Checkbox in header to enable/disable automatic tool invocation per session.
+
 ### v0.3.0 — Fine-Tuning Pipeline ✅
 - **Dataset collection** (`finetune/collect.py`) — exports conversation history to Alpaca and ShareGPT formats with quality filtering (`--min-words` flag).
 - **Dataset analyzer** (`finetune/analyze_dataset.py`) — reports length distributions, flags duplicates and short outputs, warns if dataset is under 500 pairs.
@@ -28,7 +41,7 @@
 - Custom `braincbrain` model via Ollama (qwen2.5:14b base).
 - Dark minimal web UI with conversation switching.
 
-BrainC is a production-quality, privacy-first AI assistant that runs entirely on your hardware. No API keys. No cloud dependencies. No data leaving your machine. It pairs a custom-tuned Ollama model (built on `qwen2.5:14b`) with a streaming FastAPI backend and a clean, minimal web interface.
+BrainC v0.4.0 is a production-quality, privacy-first AI assistant that runs entirely on your hardware. No API keys. No cloud dependencies. No data leaving your machine. It pairs a custom-tuned Ollama model (built on `qwen2.5:14b`) with a streaming FastAPI backend and a clean, minimal web interface.
 
 ---
 
@@ -121,6 +134,16 @@ Responses are streamed token-by-token from Ollama through the FastAPI `Streaming
 | `GET` | `/conversations` | List all conversations with metadata |
 | `PATCH` | `/conversations/{id}` | Update title or tags |
 | `DELETE` | `/conversations/{id}` | Delete a conversation and its messages |
+| `GET` | `/tools/search?q=` | Web search via SearXNG |
+| `POST` | `/tools/execute` | Execute Python in sandbox |
+| `POST` | `/tools/read-file` | Read workspace file |
+| `GET` | `/tools/notes` | List notes |
+| `POST` | `/tools/notes` | Create note |
+| `GET` | `/tools/notes/search?q=` | Search notes |
+| `GET` | `/tools/calendar` | List calendar events |
+| `POST` | `/tools/calendar` | Add calendar event |
+| `GET` | `/mcp/tools` | List MCP tools |
+| `POST` | `/mcp/call` | Call an MCP tool |
 | `GET` | `/health` | Health check |
 | `GET` | `/docs` | Interactive API docs (Swagger UI) |
 
@@ -160,6 +183,100 @@ Verify BrainC's personality is dialed in:
 ```
 
 This runs 10 curated prompts through the Ollama CLI and prints results for manual review. Tests cover tone, directness, uncertainty handling, sycophancy resistance, step-by-step reasoning, and more.
+
+---
+
+## Tools & Integrations (v0.4)
+
+BrainC v0.4 can automatically invoke local tools when it detects relevant intent in a chat message. Tools are injected into the model's context as `[TOOL RESULT]` system messages. The **Tools** toggle in the UI header lets you disable this per-session.
+
+### Web Search — SearXNG
+
+Trigger words: _search_, _look up_, _find_, _latest_, _what is_, etc.
+
+**Setup:**
+```bash
+cd tools/searxng
+docker compose up -d
+```
+
+This starts SearXNG on `http://localhost:8080`. BrainC's search tool hits the JSON API automatically. No API key needed.
+
+**Direct API:**
+```
+GET /tools/search?q=your+query
+```
+
+### Code Execution
+
+Trigger: messages containing a ` ```python ` code block.
+
+The sandbox uses `ast` to block dangerous imports (`os`, `subprocess`, `socket`, `shutil`, etc.) and `open()` in write mode before the code ever runs. Execution happens in a `TemporaryDirectory` subprocess with a 10-second timeout.
+
+```
+POST /tools/execute
+{"code": "print(2 + 2)"}
+```
+
+### File Reading
+
+Trigger words: _read file_, _open file_, _show file_ + a quoted filename.
+
+Files must live inside `~/BrainC/workspace/`. Path traversal is blocked. Supported: `.txt .md .py .js .json .csv .yaml .yml .html .css`.
+
+```
+POST /tools/read-file
+{"path": "notes/my-note.md"}
+```
+
+### Notes
+
+Trigger words: _add a note_, _create a note_, _my notes_, _list notes_.
+
+Notes are stored as Markdown files in `~/BrainC/workspace/notes/`. They're also visible in the UI sidebar.
+
+```
+GET    /tools/notes             # list
+POST   /tools/notes             # create {"title": "...", "content": "..."}
+GET    /tools/notes/{filename}  # read
+DELETE /tools/notes/{filename}  # delete
+GET    /tools/notes/search?q=   # full-text search
+```
+
+### Calendar
+
+Trigger words: _calendar_, _schedule_, _add event_, _what's on my calendar_.
+
+Events stored as JSON at `~/BrainC/workspace/calendar.json`.
+
+```
+GET    /tools/calendar          # list (optional ?from=YYYY-MM-DD&to=YYYY-MM-DD)
+POST   /tools/calendar          # add {"title": "...", "date": "YYYY-MM-DD", "time": "HH:MM"}
+DELETE /tools/calendar/{id}     # delete
+```
+
+### MCP (Model Context Protocol)
+
+BrainC exposes a standard MCP surface at `/mcp`:
+
+```
+GET  /mcp/tools    # lists braincbrain_search, braincbrain_execute, braincbrain_read_file
+POST /mcp/call     # {"name": "braincbrain_search", "arguments": {"query": "..."}}
+```
+
+To connect BrainC to **external** MCP servers, edit `api/mcp/config.json`:
+```json
+{
+  "servers": [
+    {
+      "name": "my-server",
+      "url": "http://localhost:3001/mcp",
+      "enabled": true,
+      "description": "My custom MCP server"
+    }
+  ]
+}
+```
 
 ---
 
@@ -205,7 +322,7 @@ python finetune/ab_test.py          # 5. compare base vs fine-tuned
 - LoRA fine-tuning scripts for custom behavior
 - A/B testing framework for prompt and model variants
 
-**v0.4 — API Integrations**
+**v0.4 — API Integrations** ✅ _complete_
 - Local tool use: web search (SearXNG), code execution, file reading
 - Calendar and notes integration via local APIs
 - MCP (Model Context Protocol) server support

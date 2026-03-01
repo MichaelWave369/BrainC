@@ -1,5 +1,6 @@
 import asyncio
 import json
+import re
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
@@ -86,6 +87,108 @@ async def _maybe_summarize(conversation_id: str) -> None:
         await save_summary(summary_text, conversation_id)
 
 
+# ── Tool detection ───────────────────────────────────────────────────────────
+
+_SEARCH_PATTERNS = re.compile(
+    r"\b(search|look up|find|google|what is|who is|what are|latest|news about|"
+    r"tell me about|search for|look for|find out|check|results for)\b",
+    re.IGNORECASE,
+)
+
+_EXECUTE_PATTERNS = re.compile(
+    r"\b(run|execute|eval|compute|calculate|python|script|code)\b.*\b(this|following|code|snippet|function)\b"
+    r"|```python|```py\b",
+    re.IGNORECASE | re.DOTALL,
+)
+
+_FILE_PATTERNS = re.compile(
+    r"\b(read|open|show|display|load|cat)\b.*\bfile\b"
+    r"|\bfile\b.*\b(read|open|show|display|load)\b",
+    re.IGNORECASE,
+)
+
+_NOTE_PATTERNS = re.compile(
+    r"\b(add|create|save|write|make)\b.*\bnote\b"
+    r"|\bmy notes\b|\bshow notes\b|\blist notes\b",
+    re.IGNORECASE,
+)
+
+_CALENDAR_PATTERNS = re.compile(
+    r"\b(add|create|schedule|remind|put)\b.*\b(calendar|event|reminder|appointment)\b"
+    r"|\b(calendar|schedule|agenda|events)\b",
+    re.IGNORECASE,
+)
+
+
+async def _detect_and_run_tool(message: str) -> tuple[str | None, str | None]:
+    """
+    Detect which tool (if any) to invoke for this message and run it.
+
+    Returns (tool_name, tool_result_text) or (None, None) if no tool matched.
+    """
+    from api.tools.search import search
+    from api.tools.notes import list_notes, search_notes
+    from api.tools.executor import execute_code
+
+    if _SEARCH_PATTERNS.search(message):
+        # Extract a concise query (use the full message as the search query)
+        query = message.strip()
+        results = await search(query)
+        if results:
+            snippets = "\n".join(
+                f"- {r['title']}: {r['snippet']} ({r['url']})" for r in results
+            )
+            return "search", f"Web search results for '{query}':\n{snippets}"
+        return "search", f"No search results found for '{query}'."
+
+    if _NOTE_PATTERNS.search(message):
+        notes = await list_notes()
+        if notes.get("notes"):
+            items = "\n".join(
+                f"- {n['title']} ({n['filename']})" for n in notes["notes"]
+            )
+            return "notes", f"Notes ({notes['count']}):\n{items}"
+        return "notes", "No notes saved yet."
+
+    if _CALENDAR_PATTERNS.search(message):
+        from api.tools.notes import list_events
+        events = await list_events()
+        if events.get("events"):
+            items = "\n".join(
+                f"- {e['date']} {e.get('time','')} — {e['title']}" for e in events["events"]
+            )
+            return "calendar", f"Calendar events:\n{items}"
+        return "calendar", "No calendar events found."
+
+    # Code execution: only trigger if there's an actual code block
+    if "```" in message and _EXECUTE_PATTERNS.search(message):
+        code_match = re.search(r"```(?:python|py)?\n?([\s\S]*?)```", message)
+        if code_match:
+            code = code_match.group(1).strip()
+            result = await asyncio.to_thread(execute_code, code)
+            if result["success"]:
+                output = result.get("output", "").strip() or "(no output)"
+                return "execute", f"Code executed successfully:\n{output}"
+            else:
+                err = result.get("error", "unknown error")
+                return "execute", f"Code execution failed:\n{err}"
+
+    if _FILE_PATTERNS.search(message):
+        # Extract a filename-like token from the message
+        file_match = re.search(r'["\']([^"\']+\.[a-z]{1,5})["\']', message)
+        if file_match:
+            from api.tools.file_reader import read_file
+            path = file_match.group(1)
+            result = await read_file(path)
+            if not result.get("error"):
+                content = result.get("content", "")
+                preview = content[:500] + ("…" if len(content) > 500 else "")
+                return "file", f"File '{path}':\n{preview}"
+            return "file", f"Could not read file: {result['error']}"
+
+    return None, None
+
+
 # ── Routes ──────────────────────────────────────────────────────────────────
 
 
@@ -97,7 +200,8 @@ async def chat(request: ChatRequest):
     1. Auto-creates conversation metadata (title from first 6 words).
     2. Summarizes the oldest 10 turns if the conversation exceeds MAX_TURNS_BEFORE_SUMMARY.
     3. Embeds the user message and injects the top-3 semantically similar past exchanges.
-    4. Streams the assistant reply and persists both messages with embeddings.
+    4. Optionally runs a local tool (search, execute, notes, calendar) and injects the result.
+    5. Streams the assistant reply and persists both messages with embeddings.
     """
     conversation_id = request.conversation_id or "default"
 
@@ -107,7 +211,7 @@ async def chat(request: ChatRequest):
     # 2. Summarize if needed
     await _maybe_summarize(conversation_id)
 
-    # 3. Retrieve current history (may now contain a fresh summary)
+    # 3. Retrieve current history
     history = await get_history(conversation_id)
 
     # 4. Embed the user message
@@ -120,7 +224,13 @@ async def chat(request: ChatRequest):
         exclude_conversation_id=conversation_id,
     )
 
-    # 6. Build the context window
+    # 6. Optionally run a tool
+    tool_name: str | None = None
+    tool_result: str | None = None
+    if request.tools_enabled:
+        tool_name, tool_result = await _detect_and_run_tool(request.message)
+
+    # 7. Build the context window
     messages: list[dict] = []
 
     if similar:
@@ -150,12 +260,29 @@ async def chat(request: ChatRequest):
         else:
             messages.append({"role": row["role"], "content": row["message"]})
 
+    # Inject tool result into context before the user message
+    if tool_result:
+        messages.append(
+            {
+                "role": "system",
+                "content": f"[TOOL RESULT — {tool_name}]\n{tool_result}",
+            }
+        )
+
     messages.append({"role": "user", "content": request.message})
 
-    # 7. Persist the user message with its embedding
+    # 8. Persist the user message with its embedding
     await save_message("user", request.message, conversation_id, query_embedding)
 
-    # 8. Stream the response; persist the full reply with embedding on completion
+    # 9. Build response headers (expose tool activity to the UI)
+    response_headers: dict[str, str] = {}
+    if tool_name:
+        response_headers["X-Tool-Used"] = tool_name
+        # Truncate to keep headers reasonable
+        preview = (tool_result or "")[:512]
+        response_headers["X-Tool-Result"] = preview
+
+    # 10. Stream the response; persist the full reply with embedding on completion
     full_response_parts: list[str] = []
 
     async def collecting_generator():
@@ -198,7 +325,11 @@ async def chat(request: ChatRequest):
                     except json.JSONDecodeError:
                         continue
 
-    return StreamingResponse(collecting_generator(), media_type="text/plain")
+    return StreamingResponse(
+        collecting_generator(),
+        media_type="text/plain",
+        headers=response_headers,
+    )
 
 
 @router.get("/search", response_model=SearchResponse)

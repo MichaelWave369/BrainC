@@ -11,6 +11,21 @@ const clearBtn = document.getElementById("clear-btn");
 const statusBar = document.getElementById("status-bar");
 const newChatBtn = document.getElementById("new-chat-btn");
 const convList = document.getElementById("conv-list");
+const notesList = document.getElementById("notes-list");
+const newNoteBtn = document.getElementById("new-note-btn");
+const toolsToggle = document.getElementById("tools-toggle");
+const toolsBadge = document.getElementById("tools-badge");
+const toolPanel = document.getElementById("tool-panel");
+const toolPanelToggle = document.getElementById("tool-panel-toggle");
+const toolPanelName = document.getElementById("tool-panel-name");
+const toolPanelBody = document.getElementById("tool-panel-body");
+const toolPanelResult = document.getElementById("tool-panel-result");
+const noteModal = document.getElementById("note-modal");
+const noteTitleInput = document.getElementById("note-title-input");
+const noteContentInput = document.getElementById("note-content-input");
+const noteSaveBtn = document.getElementById("note-save-btn");
+const noteCancelBtn = document.getElementById("note-cancel-btn");
+const noteModalClose = document.getElementById("note-modal-close");
 
 let isStreaming = false;
 let currentConversationId = "default";
@@ -23,7 +38,7 @@ function setStatus(text, isError = false) {
 }
 
 function clearStatus() {
-  statusBar.textContent = "PHI369 Labs · BrainC v0.2.0 · offline-capable";
+  statusBar.textContent = "PHI369 Labs · BrainC v0.4.0 · offline-capable";
   statusBar.className = "";
 }
 
@@ -64,8 +79,6 @@ function formatMessageContent(text) {
   text = text.replace(/`([^`\n]+)`/g, (_, code) => {
     return `<code>${escapeHtml(code)}</code>`;
   });
-  // Escape remaining HTML in non-code content (already escaped above in code blocks)
-  // Preserve line breaks
   return text;
 }
 
@@ -76,6 +89,33 @@ function scrollToBottom() {
 function hideEmptyState() {
   if (emptyState) emptyState.style.display = "none";
 }
+
+// ── Tool activity panel ─────────────────────────────────────
+
+function showToolActivity(toolName, toolResult) {
+  toolPanel.style.display = "";
+  toolPanelName.textContent = `⚡ tool: ${toolName}`;
+  toolPanelResult.textContent = toolResult || "";
+
+  // Update header badge
+  toolsBadge.textContent = toolName;
+  toolsBadge.style.display = "";
+
+  // Collapse body by default on new result
+  toolPanelBody.style.display = "none";
+  document.querySelector(".tool-panel-chevron").textContent = "▾";
+}
+
+function hideToolActivity() {
+  toolPanel.style.display = "none";
+  toolsBadge.style.display = "none";
+}
+
+toolPanelToggle.addEventListener("click", () => {
+  const isOpen = toolPanelBody.style.display !== "none";
+  toolPanelBody.style.display = isOpen ? "none" : "";
+  document.querySelector(".tool-panel-chevron").textContent = isOpen ? "▾" : "▴";
+});
 
 // ── Message rendering ──────────────────────────────────────
 
@@ -184,12 +224,93 @@ function renderConversationList(conversations) {
 
 function switchConversation(id) {
   currentConversationId = id;
-  // Update active highlight without a full re-render
   [...convList.querySelectorAll(".conv-item")].forEach(el => {
     el.classList.toggle("active", el.dataset.id === id);
   });
+  hideToolActivity();
   loadHistory();
 }
+
+// ── Sidebar — notes list ────────────────────────────────────
+
+async function loadNotes() {
+  try {
+    const res = await fetch(`${API_BASE}/tools/notes`);
+    if (!res.ok) return;
+    const data = await res.json();
+    renderNotesList(data.notes || []);
+  } catch (_) {
+    // Non-fatal
+  }
+}
+
+function renderNotesList(notes) {
+  notesList.innerHTML = "";
+  if (!notes.length) {
+    const el = document.createElement("div");
+    el.className = "sidebar-empty";
+    el.textContent = "No notes";
+    notesList.appendChild(el);
+    return;
+  }
+  for (const note of notes) {
+    const item = document.createElement("div");
+    item.className = "note-item";
+    item.textContent = note.title;
+    item.title = note.filename;
+    notesList.appendChild(item);
+  }
+}
+
+// ── Note modal ──────────────────────────────────────────────
+
+function openNoteModal() {
+  noteTitleInput.value = "";
+  noteContentInput.value = "";
+  noteModal.style.display = "";
+  noteTitleInput.focus();
+}
+
+function closeNoteModal() {
+  noteModal.style.display = "none";
+}
+
+async function createNote() {
+  const title = noteTitleInput.value.trim();
+  const content = noteContentInput.value.trim();
+  if (!title) {
+    noteTitleInput.focus();
+    return;
+  }
+
+  noteSaveBtn.disabled = true;
+  try {
+    const res = await fetch(`${API_BASE}/tools/notes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ title, content }),
+    });
+    if (res.ok) {
+      closeNoteModal();
+      await loadNotes();
+    } else {
+      const err = await res.json();
+      setStatus(`Failed to save note: ${err.detail || res.status}`, true);
+    }
+  } catch (err) {
+    setStatus(`Note save error: ${err.message}`, true);
+  } finally {
+    noteSaveBtn.disabled = false;
+  }
+}
+
+newNoteBtn.addEventListener("click", openNoteModal);
+noteModalClose.addEventListener("click", closeNoteModal);
+noteCancelBtn.addEventListener("click", closeNoteModal);
+noteSaveBtn.addEventListener("click", createNote);
+noteModal.addEventListener("click", (e) => {
+  if (e.target === noteModal) closeNoteModal();
+});
 
 // ── History loading ────────────────────────────────────────
 
@@ -202,7 +323,6 @@ async function loadHistory() {
     }
     const data = await res.json();
 
-    // Clear current messages (keep empty state hidden logic in appendMessage)
     chatContainer.innerHTML = "";
     chatContainer.appendChild(emptyState);
     emptyState.style.display = "";
@@ -226,6 +346,7 @@ async function sendMessage(text) {
   isStreaming = true;
   sendBtn.disabled = true;
   messageInput.disabled = true;
+  hideToolActivity();
 
   appendMessage("user", text);
 
@@ -241,6 +362,7 @@ async function sendMessage(text) {
       body: JSON.stringify({
         message: text,
         conversation_id: currentConversationId,
+        tools_enabled: toolsToggle.checked,
       }),
     });
 
@@ -250,6 +372,13 @@ async function sendMessage(text) {
       streamEl.textContent = `[Error ${res.status}] ${errText}`;
       setStatus(`Error ${res.status}`, true);
       return;
+    }
+
+    // Check tool headers before consuming the stream body
+    const toolUsed = res.headers.get("X-Tool-Used");
+    const toolResult = res.headers.get("X-Tool-Result");
+    if (toolUsed) {
+      showToolActivity(toolUsed, toolResult || "");
     }
 
     const reader = res.body.getReader();
@@ -262,14 +391,12 @@ async function sendMessage(text) {
       const chunk = decoder.decode(value, { stream: true });
       fullText += chunk;
 
-      // Render raw text with basic formatting
       streamEl.innerHTML = formatMessageContent(escapeHtml(fullText));
       scrollToBottom();
     }
 
     streamEl.classList.remove("streaming-cursor");
     clearStatus();
-    // Refresh sidebar so new conversation title appears
     await loadConversations();
   } catch (err) {
     streamEl.classList.remove("streaming-cursor");
@@ -300,6 +427,7 @@ async function clearHistory() {
     chatContainer.innerHTML = "";
     chatContainer.appendChild(emptyState);
     emptyState.style.display = "";
+    hideToolActivity();
     clearStatus();
     await loadConversations();
   } catch (err) {
@@ -314,8 +442,8 @@ function newChat() {
   chatContainer.innerHTML = "";
   chatContainer.appendChild(emptyState);
   emptyState.style.display = "";
+  hideToolActivity();
   clearStatus();
-  // Deselect any active item; sidebar will refresh after first message
   [...convList.querySelectorAll(".conv-item")].forEach(el =>
     el.classList.remove("active")
   );
@@ -355,6 +483,6 @@ newChatBtn.addEventListener("click", newChat);
 // ── Init ───────────────────────────────────────────────────
 
 (async function init() {
-  await Promise.all([loadHistory(), loadConversations()]);
+  await Promise.all([loadHistory(), loadConversations(), loadNotes()]);
   messageInput.focus();
 })();
