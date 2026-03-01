@@ -1,0 +1,10 @@
+{
+  "servers": [
+    {
+      "name": "example",
+      "url": "http://localhost:3000/mcp",
+      "enabled": false,
+      "description": "Example external MCP server — set enabled:true to activate"
+    }
+  ]
+}

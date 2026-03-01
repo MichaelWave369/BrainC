@@ -10,6 +10,10 @@ class ChatRequest(BaseModel):
         default="default",
         description="Session identifier for multi-conversation support",
     )
+    tools_enabled: bool = Field(
+        default=True,
+        description="Whether to allow automatic tool invocation for this request",
+    )
 
 
 class ChatMessage(BaseModel):

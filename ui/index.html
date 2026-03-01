@@ -15,7 +15,19 @@
         <span class="sidebar-logo">BrainC</span>
         <button id="new-chat-btn" title="Start a new conversation">+ New Chat</button>
       </div>
+
+      <!-- Conversation list -->
+      <div class="sidebar-section-label">Conversations</div>
       <div id="conv-list">
+        <!-- Populated by app.js -->
+      </div>
+
+      <!-- Notes section -->
+      <div class="sidebar-section-label sidebar-section-tools">
+        Notes
+        <button id="new-note-btn" title="Create a new note">+</button>
+      </div>
+      <div id="notes-list">
         <!-- Populated by app.js -->
       </div>
     </aside>
@@ -27,11 +39,27 @@
       <header>
         <div class="header-left">
           <span class="model-badge">qwen2.5:14b · local</span>
+          <span id="tools-badge" class="tool-badge" style="display:none"></span>
         </div>
         <div class="header-right">
+          <label class="tools-toggle" title="Enable/disable automatic tool use">
+            <input type="checkbox" id="tools-toggle" checked />
+            <span class="tools-toggle-label">Tools</span>
+          </label>
           <button id="clear-btn" title="Clear conversation">Clear Chat</button>
         </div>
       </header>
+
+      <!-- Tool activity panel (hidden until a tool runs) -->
+      <div id="tool-panel" class="tool-panel" style="display:none">
+        <button id="tool-panel-toggle" class="tool-panel-toggle">
+          <span id="tool-panel-name"></span>
+          <span class="tool-panel-chevron">▾</span>
+        </button>
+        <div id="tool-panel-body" class="tool-panel-body" style="display:none">
+          <pre id="tool-panel-result"></pre>
+        </div>
+      </div>
 
       <!-- Chat messages -->
       <div id="chat-container">
@@ -64,10 +92,39 @@
       </div>
 
       <!-- Status -->
-      <div id="status-bar">PHI369 Labs · BrainC v0.2.0 · offline-capable</div>
+      <div id="status-bar">PHI369 Labs · BrainC v0.4.0 · offline-capable</div>
 
     </div><!-- /#app -->
   </div><!-- /#wrapper -->
+
+  <!-- New note modal -->
+  <div id="note-modal" class="modal-overlay" style="display:none">
+    <div class="modal">
+      <div class="modal-header">
+        <span class="modal-title">New Note</span>
+        <button id="note-modal-close" class="modal-close">✕</button>
+      </div>
+      <div class="modal-body">
+        <input
+          id="note-title-input"
+          class="modal-input"
+          type="text"
+          placeholder="Note title"
+          autocomplete="off"
+        />
+        <textarea
+          id="note-content-input"
+          class="modal-textarea"
+          placeholder="Note content (markdown supported)"
+          rows="8"
+        ></textarea>
+      </div>
+      <div class="modal-footer">
+        <button id="note-save-btn" class="modal-btn-primary">Save Note</button>
+        <button id="note-cancel-btn" class="modal-btn-secondary">Cancel</button>
+      </div>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

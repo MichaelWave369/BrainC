@@ -9,6 +9,8 @@ from fastapi.staticfiles import StaticFiles
 from api.routes.chat import router as chat_router
 from api.routes.conversations import router as conversations_router
 from api.routes.memory import init_db
+from api.routes.tools import router as tools_router
+from api.mcp.server import router as mcp_router
 
 
 @asynccontextmanager
@@ -20,7 +22,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="BrainC API",
     description="Local AI ecosystem by PHI369 Labs — powered by Ollama + qwen2.5:14b",
-    version="0.2.0",
+    version="0.4.0",
     lifespan=lifespan,
 )
 
@@ -30,10 +32,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Tool-Used", "X-Tool-Query", "X-Tool-Result"],
 )
 
 app.include_router(chat_router, tags=["chat"])
 app.include_router(conversations_router)
+app.include_router(tools_router)
+app.include_router(mcp_router)
 
 # Serve the UI as static files
 UI_DIR = Path(__file__).parent.parent / "ui"
@@ -47,4 +52,4 @@ if UI_DIR.exists():
 
 @app.get("/health", tags=["system"])
 async def health():
-    return {"status": "ok", "model": "braincbrain", "version": "0.2.0"}
+    return {"status": "ok", "model": "braincbrain", "version": "0.4.0"}

@@ -1,0 +1,41 @@
+# SearXNG settings for BrainC local deployment
+# Docs: https://docs.searxng.org/admin/settings/settings.html
+
+use_default_settings: true
+
+server:
+  secret_key: "change-me-in-production"
+  limiter: false          # No rate limiting for local use
+  image_proxy: false
+
+ui:
+  static_use_hash: true
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: "en"
+  formats:
+    - html
+    - json                # Required for BrainC API integration
+
+engines:
+  - name: google
+    engine: google
+    shortcut: g
+    disabled: false
+
+  - name: bing
+    engine: bing
+    shortcut: b
+    disabled: false
+
+  - name: duckduckgo
+    engine: duckduckgo
+    shortcut: d
+    disabled: false
+
+  - name: wikipedia
+    engine: wikipedia
+    shortcut: w
+    disabled: false
