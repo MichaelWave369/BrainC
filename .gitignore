@@ -35,3 +35,18 @@ Thumbs.db
 # Logs
 *.log
 logs/
+
+# Fine-tuning outputs (large files — keep .gitkeep only)
+finetune/datasets/*.json
+finetune/datasets/.prepared/
+finetune/output/lora_adapter/
+finetune/output/merged_model/
+finetune/output/axolotl_output/
+finetune/output/*.gguf
+finetune/output/Modelfile.ft
+finetune/ab_results/*.json
+
+# GGUF / model weights
+*.gguf
+*.bin
+*.safetensors

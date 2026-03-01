@@ -6,6 +6,15 @@
 
 ## Changelog
 
+### v0.3.0 — Fine-Tuning Pipeline ✅
+- **Dataset collection** (`finetune/collect.py`) — exports conversation history to Alpaca and ShareGPT formats with quality filtering (`--min-words` flag).
+- **Dataset analyzer** (`finetune/analyze_dataset.py`) — reports length distributions, flags duplicates and short outputs, warns if dataset is under 500 pairs.
+- **Unsloth training script** (`finetune/train_unsloth.py`) — LoRA fine-tuning on `Qwen2.5-14B-Instruct` with bf16, gradient checkpointing, and automatic adapter merge.
+- **Axolotl config** (`finetune/axolotl_config.yml`) — production-ready YAML for multi-GPU / Axolotl workflows.
+- **GGUF export** (`finetune/export_to_ollama.py`) — converts merged model to Q4_K_M GGUF via llama.cpp, generates Modelfile, registers as `braincbrain-ft` in Ollama.
+- **A/B testing framework** (`finetune/ab_test.py`) — side-by-side terminal comparison of any two Ollama models with response-length and time-per-word metrics; results saved to JSON.
+- **Test prompt set** (`finetune/test_prompts.txt`) — 10 curated prompts covering reasoning, tone, epistemic honesty, pushback resistance, and prose style.
+
 ### v0.2.0 — Memory Expansion ✅
 - **Semantic search** over conversation history using `all-MiniLM-L6-v2` (local, no API key). Embeddings stored as BLOBs in SQLite. Top-3 relevant past exchanges injected into every prompt.
 - New route: `GET /search?q=<query>` — returns semantically similar past messages.
@@ -154,6 +163,24 @@ This runs 10 curated prompts through the Ollama CLI and prints results for manua
 
 ---
 
+## Fine-Tuning
+
+BrainC v0.3 includes a complete pipeline for fine-tuning the model on your
+own conversation history. See **[finetune/README.md](finetune/README.md)** for
+the full guide.
+
+**Quick workflow:**
+
+```bash
+python finetune/collect.py          # 1. export dataset
+python finetune/analyze_dataset.py  # 2. check quality
+python finetune/train_unsloth.py    # 3. train LoRA adapter
+python finetune/export_to_ollama.py # 4. convert to GGUF + register
+python finetune/ab_test.py          # 5. compare base vs fine-tuned
+```
+
+---
+
 ## Scripts
 
 | Script | Purpose |
@@ -173,7 +200,7 @@ This runs 10 curated prompts through the Ollama CLI and prints results for manua
 - Configurable context window management (summarize old turns)
 - Per-conversation metadata and tagging
 
-**v0.3 — Fine-Tuning Pipeline**
+**v0.3 — Fine-Tuning Pipeline** ✅ _complete_
 - Dataset collection tooling from conversation history
 - LoRA fine-tuning scripts for custom behavior
 - A/B testing framework for prompt and model variants

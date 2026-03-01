@@ -1,0 +1,28 @@
+# BrainC v0.3 — Fine-Tuning Dependencies
+#
+# IMPORTANT: Install PyTorch with CUDA before everything else:
+#   pip install torch --index-url https://download.pytorch.org/whl/cu124
+#
+# Then install this file:
+#   pip install -r finetune/requirements.txt
+
+# ── Core training stack ────────────────────────────────────────────────────
+# Unsloth: 2x faster LoRA fine-tuning, installs its own optimized transformers fork
+unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git
+
+# Trainer and PEFT adapters
+trl>=0.8.6
+peft>=0.10.0
+accelerate>=0.29.0
+bitsandbytes>=0.43.0
+
+# ── Dataset handling ───────────────────────────────────────────────────────
+datasets>=2.18.0
+transformers>=4.40.0
+
+# ── Optional: experiment tracking ─────────────────────────────────────────
+# wandb  # uncomment and set WANDB_API_KEY to enable
+
+# ── Optional: GGUF conversion via Python bindings ─────────────────────────
+# llama-cpp-python  # only needed if you prefer Python-based conversion
+#                   # the export_to_ollama.py script uses the llama.cpp CLI instead
