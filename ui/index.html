@@ -13,13 +13,16 @@
     <aside id="sidebar">
       <div class="sidebar-header">
         <span class="sidebar-logo">BrainC</span>
-        <button id="new-chat-btn" title="Start a new conversation">+ New Chat</button>
+        <button id="new-chat-btn" title="New Chat (Ctrl+N)">+ New Chat</button>
       </div>
 
       <!-- Conversation list -->
       <div class="sidebar-section-label">Conversations</div>
       <div id="conv-list">
-        <!-- Populated by app.js -->
+        <!-- Skeleton loaders -->
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
+        <div class="skeleton-item"></div>
       </div>
 
       <!-- Notes section -->
@@ -28,7 +31,7 @@
         <button id="new-note-btn" title="Create a new note">+</button>
       </div>
       <div id="notes-list">
-        <!-- Populated by app.js -->
+        <div class="skeleton-item"></div>
       </div>
     </aside>
 
@@ -38,7 +41,19 @@
       <!-- Header -->
       <header>
         <div class="header-left">
-          <span class="model-badge">qwen2.5:14b · local</span>
+          <!-- Model switcher -->
+          <div id="model-switcher" class="model-switcher">
+            <button id="model-btn" class="model-badge" title="Click to switch model">
+              <span id="model-name-display">braincbrain</span>
+              <span class="model-chevron">▾</span>
+            </button>
+            <div id="model-dropdown" class="model-dropdown" style="display:none">
+              <div class="model-dropdown-header">Switch Model</div>
+              <div id="model-list" class="model-list">
+                <div style="color:var(--muted);font-size:0.8rem;padding:0.5rem">Loading...</div>
+              </div>
+            </div>
+          </div>
           <span id="tools-badge" class="tool-badge" style="display:none"></span>
         </div>
         <div class="header-right">
@@ -71,6 +86,11 @@
         <div id="empty-state">
           <div class="empty-title">BrainC</div>
           <div class="empty-sub">A local AI by PHI369 Labs. Everything runs on your machine.</div>
+          <div class="empty-shortcuts">
+            <span><kbd>Ctrl+N</kbd> New Chat</span>
+            <span><kbd>Ctrl+K</kbd> Search</span>
+            <span><kbd>Esc</kbd> Close modal</span>
+          </div>
         </div>
       </div>
 
@@ -79,7 +99,7 @@
         <form id="input-form">
           <textarea
             id="message-input"
-            placeholder="Message BrainC..."
+            placeholder="Message BrainC... (Ctrl+K to search)"
             rows="1"
             autocomplete="off"
             spellcheck="true"
@@ -96,8 +116,17 @@
         </div>
       </div>
 
-      <!-- Status -->
-      <div id="status-bar">PHI369 Labs · BrainC v0.5.0 · offline-capable</div>
+      <!-- Status bar (v1.0 — model, queue depth, connection status) -->
+      <div id="status-bar">
+        <span id="status-text">PHI369 Labs · BrainC v1.0.0</span>
+        <span id="status-right">
+          <span id="queue-depth-indicator" style="display:none" class="status-chip">Queue: <span id="queue-depth">0</span></span>
+          <span id="connection-status" class="status-chip">
+            <span id="conn-dot" class="conn-dot conn-unknown">●</span>
+            <span id="conn-label">Connecting...</span>
+          </span>
+        </span>
+      </div>
 
     </div><!-- /#app -->
   </div><!-- /#wrapper -->
@@ -130,6 +159,9 @@
       </div>
     </div>
   </div>
+
+  <!-- Error toast container -->
+  <div id="toast-container"></div>
 
   <script src="app.js"></script>
 </body>

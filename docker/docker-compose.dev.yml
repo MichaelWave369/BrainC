@@ -1,0 +1,28 @@
+version: "3.9"
+
+# BrainC — Development overrides (hot reload, debug logging)
+# Usage: docker compose -f docker/docker-compose.yml -f docker/docker-compose.dev.yml up
+
+services:
+  braincbrain-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: builder          # Use the builder stage for dev (has build tools)
+    volumes:
+      - ..:/app                # Mount entire repo for hot reload
+      - /app/__pycache__       # Exclude pycache
+    environment:
+      - ENV=development
+      - LOG_LEVEL=DEBUG
+    command:
+      - uvicorn
+      - api.main:app
+      - --host
+      - "0.0.0.0"
+      - --port
+      - "8000"
+      - --reload
+      - --reload-dir
+      - /app/api
+    user: root                 # Allow writes in dev

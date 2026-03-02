@@ -1,0 +1,51 @@
+version: "3.9"
+
+# BrainC — Production stack
+
+services:
+  braincbrain-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: braincbrain:1.0.0
+    container_name: braincbrain-api
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../memory:/app/memory
+      - ../workspace:/app/workspace
+      - ../logs:/app/logs
+      - ../backups:/app/backups
+    env_file:
+      - ../.env
+    environment:
+      - ENV=production
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - searxng
+    networks:
+      - braincbrain-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  searxng:
+    image: searxng/searxng:latest
+    container_name: braincbrain-searxng
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../tools/searxng/searxng:/etc/searxng
+    networks:
+      - braincbrain-net
+
+networks:
+  braincbrain-net:
+    driver: bridge
