@@ -1,7 +1,25 @@
-/* BrainC UI — PHI369 Labs */
+/* BrainC UI — PHI369 Labs · v0.5.0 */
 
 const API_BASE = "http://localhost:8000";
 
+// ── Auth state (module-level, NOT localStorage) ─────────────────────────────
+// Token is read from sessionStorage once (set by login.html after successful auth),
+// then kept in memory only. sessionStorage is cleared after the handoff.
+let authToken = sessionStorage.getItem("braincToken") || "";
+let refreshToken = sessionStorage.getItem("braincRefreshToken") || "";
+let currentUser = null;
+
+try {
+  const stored = sessionStorage.getItem("braincUser");
+  if (stored) currentUser = JSON.parse(stored);
+} catch (_) {}
+
+// Clear the sessionStorage handoff — token lives in memory from here on
+sessionStorage.removeItem("braincToken");
+sessionStorage.removeItem("braincRefreshToken");
+sessionStorage.removeItem("braincUser");
+
+// ── DOM refs ─────────────────────────────────────────────────────────────────
 const chatContainer = document.getElementById("chat-container");
 const emptyState = document.getElementById("empty-state");
 const inputForm = document.getElementById("input-form");
@@ -26,9 +44,62 @@ const noteContentInput = document.getElementById("note-content-input");
 const noteSaveBtn = document.getElementById("note-save-btn");
 const noteCancelBtn = document.getElementById("note-cancel-btn");
 const noteModalClose = document.getElementById("note-modal-close");
+const userMenu = document.getElementById("user-menu");
+const userDisplay = document.getElementById("user-display");
+const adminLink = document.getElementById("admin-link");
+const logoutBtn = document.getElementById("logout-btn");
 
 let isStreaming = false;
 let currentConversationId = "default";
+
+// ── Auth helpers ──────────────────────────────────────────────────────────────
+
+function authHeaders() {
+  return {
+    "Content-Type": "application/json",
+    ...(authToken ? { "Authorization": `Bearer ${authToken}` } : {}),
+  };
+}
+
+function redirectToLogin() {
+  window.location.replace("/login");
+}
+
+async function handleUnauthorized() {
+  // Try to refresh the token first
+  if (refreshToken) {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        authToken = data.access_token;
+        refreshToken = data.refresh_token;
+        return true; // refreshed OK
+      }
+    } catch (_) {}
+  }
+  redirectToLogin();
+  return false;
+}
+
+async function apiFetch(path, options = {}) {
+  const headers = { ...authHeaders(), ...(options.headers || {}) };
+  delete options.headers;
+  const res = await fetch(`${API_BASE}${path}`, { ...options, headers });
+  if (res.status === 401) {
+    const ok = await handleUnauthorized();
+    if (ok) {
+      // Retry once with fresh token
+      return fetch(`${API_BASE}${path}`, { ...options, headers: authHeaders() });
+    }
+    return res;
+  }
+  return res;
+}
 
 // ── Utilities ──────────────────────────────────────────────
 
@@ -38,7 +109,7 @@ function setStatus(text, isError = false) {
 }
 
 function clearStatus() {
-  statusBar.textContent = "PHI369 Labs · BrainC v0.4.0 · offline-capable";
+  statusBar.textContent = "PHI369 Labs · BrainC v0.5.0 · offline-capable";
   statusBar.className = "";
 }
 
@@ -71,11 +142,9 @@ function escapeHtml(text) {
 }
 
 function formatMessageContent(text) {
-  // Simple code block rendering (``` ... ```)
   text = text.replace(/```(\w+)?\n?([\s\S]*?)```/g, (_, lang, code) => {
     return `<pre><code>${escapeHtml(code.trim())}</code></pre>`;
   });
-  // Inline code (`...`)
   text = text.replace(/`([^`\n]+)`/g, (_, code) => {
     return `<code>${escapeHtml(code)}</code>`;
   });
@@ -90,18 +159,42 @@ function hideEmptyState() {
   if (emptyState) emptyState.style.display = "none";
 }
 
+// ── User display ──────────────────────────────────────────────────────────────
+
+function updateUserDisplay() {
+  if (!currentUser) return;
+  userMenu.style.display = "";
+  userDisplay.textContent = currentUser.display_name || currentUser.username;
+  if (currentUser.role === "admin") {
+    adminLink.style.display = "";
+  }
+}
+
+async function logout() {
+  if (refreshToken) {
+    try {
+      await apiFetch("/auth/logout", {
+        method: "POST",
+        body: JSON.stringify({ refresh_token: refreshToken }),
+      });
+    } catch (_) {}
+  }
+  authToken = "";
+  refreshToken = "";
+  currentUser = null;
+  redirectToLogin();
+}
+
+logoutBtn.addEventListener("click", logout);
+
 // ── Tool activity panel ─────────────────────────────────────
 
 function showToolActivity(toolName, toolResult) {
   toolPanel.style.display = "";
   toolPanelName.textContent = `⚡ tool: ${toolName}`;
   toolPanelResult.textContent = toolResult || "";
-
-  // Update header badge
   toolsBadge.textContent = toolName;
   toolsBadge.style.display = "";
-
-  // Collapse body by default on new result
   toolPanelBody.style.display = "none";
   document.querySelector(".tool-panel-chevron").textContent = "▾";
 }
@@ -128,7 +221,9 @@ function appendMessage(role, content, id = null) {
 
   const roleEl = document.createElement("div");
   roleEl.className = `message-role ${role}`;
-  roleEl.textContent = role === "user" ? "You" : "BrainC";
+  roleEl.textContent = role === "user"
+    ? (currentUser ? currentUser.display_name || "You" : "You")
+    : "BrainC";
 
   const contentEl = document.createElement("div");
   contentEl.className = `message-content ${role}`;
@@ -168,13 +263,11 @@ function appendStreamingMessage() {
 
 async function loadConversations() {
   try {
-    const res = await fetch(`${API_BASE}/conversations`);
-    if (!res.ok) return;
+    const res = await apiFetch("/conversations");
+    if (!res || !res.ok) return;
     const conversations = await res.json();
     renderConversationList(conversations);
-  } catch (_) {
-    // Non-fatal; sidebar just stays empty
-  }
+  } catch (_) {}
 }
 
 function renderConversationList(conversations) {
@@ -216,7 +309,6 @@ function renderConversationList(conversations) {
 
     item.appendChild(titleEl);
     item.appendChild(metaEl);
-
     item.addEventListener("click", () => switchConversation(conv.id));
     convList.appendChild(item);
   }
@@ -235,13 +327,11 @@ function switchConversation(id) {
 
 async function loadNotes() {
   try {
-    const res = await fetch(`${API_BASE}/tools/notes`);
-    if (!res.ok) return;
+    const res = await apiFetch("/tools/notes");
+    if (!res || !res.ok) return;
     const data = await res.json();
     renderNotesList(data.notes || []);
-  } catch (_) {
-    // Non-fatal
-  }
+  } catch (_) {}
 }
 
 function renderNotesList(notes) {
@@ -278,22 +368,18 @@ function closeNoteModal() {
 async function createNote() {
   const title = noteTitleInput.value.trim();
   const content = noteContentInput.value.trim();
-  if (!title) {
-    noteTitleInput.focus();
-    return;
-  }
+  if (!title) { noteTitleInput.focus(); return; }
 
   noteSaveBtn.disabled = true;
   try {
-    const res = await fetch(`${API_BASE}/tools/notes`, {
+    const res = await apiFetch("/tools/notes", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ title, content }),
     });
-    if (res.ok) {
+    if (res && res.ok) {
       closeNoteModal();
       await loadNotes();
-    } else {
+    } else if (res) {
       const err = await res.json();
       setStatus(`Failed to save note: ${err.detail || res.status}`, true);
     }
@@ -308,16 +394,16 @@ newNoteBtn.addEventListener("click", openNoteModal);
 noteModalClose.addEventListener("click", closeNoteModal);
 noteCancelBtn.addEventListener("click", closeNoteModal);
 noteSaveBtn.addEventListener("click", createNote);
-noteModal.addEventListener("click", (e) => {
-  if (e.target === noteModal) closeNoteModal();
-});
+noteModal.addEventListener("click", (e) => { if (e.target === noteModal) closeNoteModal(); });
 
 // ── History loading ────────────────────────────────────────
 
 async function loadHistory() {
   try {
-    const res = await fetch(`${API_BASE}/history?conversation_id=${encodeURIComponent(currentConversationId)}`);
-    if (!res.ok) {
+    const res = await apiFetch(
+      `/history?conversation_id=${encodeURIComponent(currentConversationId)}`
+    );
+    if (!res || !res.ok) {
       setStatus("Could not load history", true);
       return;
     }
@@ -356,9 +442,8 @@ async function sendMessage(text) {
   setStatus("BrainC is thinking...");
 
   try {
-    const res = await fetch(`${API_BASE}/chat`, {
+    const res = await apiFetch("/chat", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message: text,
         conversation_id: currentConversationId,
@@ -366,20 +451,17 @@ async function sendMessage(text) {
       }),
     });
 
-    if (!res.ok) {
-      const errText = await res.text();
+    if (!res || !res.ok) {
+      const errText = res ? await res.text() : "No response";
       streamEl.classList.remove("streaming-cursor");
-      streamEl.textContent = `[Error ${res.status}] ${errText}`;
-      setStatus(`Error ${res.status}`, true);
+      streamEl.textContent = `[Error ${res ? res.status : "?"}] ${errText}`;
+      setStatus(`Error ${res ? res.status : "?"}`, true);
       return;
     }
 
-    // Check tool headers before consuming the stream body
     const toolUsed = res.headers.get("X-Tool-Used");
     const toolResult = res.headers.get("X-Tool-Result");
-    if (toolUsed) {
-      showToolActivity(toolUsed, toolResult || "");
-    }
+    if (toolUsed) showToolActivity(toolUsed, toolResult || "");
 
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -387,10 +469,8 @@ async function sendMessage(text) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
-
       const chunk = decoder.decode(value, { stream: true });
       fullText += chunk;
-
       streamEl.innerHTML = formatMessageContent(escapeHtml(fullText));
       scrollToBottom();
     }
@@ -416,14 +496,11 @@ async function clearHistory() {
   if (!confirm("Clear this conversation? This cannot be undone.")) return;
 
   try {
-    const res = await fetch(
-      `${API_BASE}/history?conversation_id=${encodeURIComponent(currentConversationId)}`,
+    const res = await apiFetch(
+      `/history?conversation_id=${encodeURIComponent(currentConversationId)}`,
       { method: "DELETE" }
     );
-    if (!res.ok) {
-      setStatus("Failed to clear history", true);
-      return;
-    }
+    if (!res || !res.ok) { setStatus("Failed to clear history", true); return; }
     chatContainer.innerHTML = "";
     chatContainer.appendChild(emptyState);
     emptyState.style.display = "";
@@ -444,9 +521,7 @@ function newChat() {
   emptyState.style.display = "";
   hideToolActivity();
   clearStatus();
-  [...convList.querySelectorAll(".conv-item")].forEach(el =>
-    el.classList.remove("active")
-  );
+  [...convList.querySelectorAll(".conv-item")].forEach(el => el.classList.remove("active"));
   messageInput.focus();
 }
 
@@ -483,6 +558,26 @@ newChatBtn.addEventListener("click", newChat);
 // ── Init ───────────────────────────────────────────────────
 
 (async function init() {
+  // If no token, redirect to login
+  if (!authToken) {
+    redirectToLogin();
+    return;
+  }
+
+  // Verify token is valid
+  try {
+    const res = await apiFetch("/auth/me");
+    if (!res || !res.ok) {
+      redirectToLogin();
+      return;
+    }
+    currentUser = await res.json();
+    updateUserDisplay();
+  } catch (_) {
+    redirectToLogin();
+    return;
+  }
+
   await Promise.all([loadHistory(), loadConversations(), loadNotes()]);
   messageInput.focus();
 })();

@@ -6,9 +6,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from api.auth.routes import router as auth_router
+from api.auth.sessions import router as sessions_router
 from api.routes.chat import router as chat_router
 from api.routes.conversations import router as conversations_router
-from api.routes.memory import init_db
+from api.routes.memory import init_db, get_system_stats
+from api.routes.preferences import router as preferences_router
 from api.routes.tools import router as tools_router
 from api.mcp.server import router as mcp_router
 
@@ -22,7 +25,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="BrainC API",
     description="Local AI ecosystem by PHI369 Labs — powered by Ollama + qwen2.5:14b",
-    version="0.4.0",
+    version="0.5.0",
     lifespan=lifespan,
 )
 
@@ -35,6 +38,9 @@ app.add_middleware(
     expose_headers=["X-Tool-Used", "X-Tool-Query", "X-Tool-Result"],
 )
 
+app.include_router(auth_router)
+app.include_router(sessions_router)
+app.include_router(preferences_router)
 app.include_router(chat_router, tags=["chat"])
 app.include_router(conversations_router)
 app.include_router(tools_router)
@@ -49,7 +55,16 @@ if UI_DIR.exists():
     async def serve_ui():
         return FileResponse(str(UI_DIR / "index.html"))
 
+    @app.get("/login", include_in_schema=False)
+    async def serve_login():
+        return FileResponse(str(UI_DIR / "login.html"))
+
+    @app.get("/admin", include_in_schema=False)
+    async def serve_admin():
+        return FileResponse(str(UI_DIR / "admin.html"))
+
 
 @app.get("/health", tags=["system"])
 async def health():
-    return {"status": "ok", "model": "braincbrain", "version": "0.4.0"}
+    stats = await get_system_stats()
+    return {"status": "ok", "model": "braincbrain", "version": "0.5.0", **stats}
