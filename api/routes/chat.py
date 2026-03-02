@@ -3,9 +3,10 @@ import json
 import re
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
+from api.auth.middleware import get_current_user
 from api.config import MAX_TURNS_BEFORE_SUMMARY, TOP_K_SEMANTIC
 from api.models.schemas import (
     ChatMessage,
@@ -20,9 +21,11 @@ from api.routes.memory import (
     delete_history,
     delete_messages_by_ids,
     ensure_conversation,
+    get_conversation_owner,
     get_history,
     get_non_summary_count,
     get_oldest_non_summary_messages,
+    get_preferences,
     save_message,
     save_summary,
     semantic_search,
@@ -193,7 +196,7 @@ async def _detect_and_run_tool(message: str) -> tuple[str | None, str | None]:
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
     """Send a message to BrainC and stream the response back.
 
     On each request:
@@ -204,9 +207,19 @@ async def chat(request: ChatRequest):
     5. Streams the assistant reply and persists both messages with embeddings.
     """
     conversation_id = request.conversation_id or "default"
+    user_id: int = user["id"]
+
+    # Verify conversation ownership if it already exists
+    owner = await get_conversation_owner(conversation_id)
+    if owner is not None and owner != user_id:
+        raise HTTPException(status_code=403, detail="Access denied to this conversation")
+
+    # Load per-user preferences (model, tools_enabled override, etc.)
+    prefs = await get_preferences(user_id)
+    model_name = prefs.get("model", MODEL_NAME)
 
     # 1. Ensure conversation metadata exists
-    await ensure_conversation(conversation_id, request.message)
+    await ensure_conversation(conversation_id, request.message, user_id)
 
     # 2. Summarize if needed
     await _maybe_summarize(conversation_id)
@@ -272,7 +285,7 @@ async def chat(request: ChatRequest):
     messages.append({"role": "user", "content": request.message})
 
     # 8. Persist the user message with its embedding
-    await save_message("user", request.message, conversation_id, query_embedding)
+    await save_message("user", request.message, conversation_id, query_embedding, user_id)
 
     # 9. Build response headers (expose tool activity to the UI)
     response_headers: dict[str, str] = {}
@@ -290,7 +303,7 @@ async def chat(request: ChatRequest):
             async with client.stream(
                 "POST",
                 f"{OLLAMA_BASE_URL}/api/chat",
-                json={"model": MODEL_NAME, "messages": messages, "stream": True},
+                json={"model": model_name, "messages": messages, "stream": True},
             ) as response:
                 if response.status_code != 200:
                     error_body = await response.aread()
@@ -320,6 +333,7 @@ async def chat(request: ChatRequest):
                                     full_response,
                                     conversation_id,
                                     assistant_embedding,
+                                    user_id,
                                 )
                             break
                     except json.JSONDecodeError:
@@ -333,7 +347,10 @@ async def chat(request: ChatRequest):
 
 
 @router.get("/search", response_model=SearchResponse)
-async def search_history(q: str = Query(..., description="Natural-language search query")):
+async def search_history(
+    q: str = Query(..., description="Natural-language search query"),
+    user: dict = Depends(get_current_user),
+):
     """Return the top semantically similar past messages for a query."""
     query_embedding = await asyncio.to_thread(embed_text, q)
     results = await semantic_search(query_embedding, top_k=TOP_K_SEMANTIC)
@@ -356,9 +373,13 @@ async def search_history(q: str = Query(..., description="Natural-language searc
 async def get_conversation_history(
     conversation_id: str = Query(
         default="default", description="Conversation session ID"
-    )
+    ),
+    user: dict = Depends(get_current_user),
 ):
     """Return the full message history for a conversation."""
+    owner = await get_conversation_owner(conversation_id)
+    if owner is not None and owner != user["id"] and user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Access denied to this conversation")
     rows = await get_history(conversation_id)
     return HistoryResponse(
         conversation_id=conversation_id,
@@ -380,9 +401,14 @@ async def clear_history(
     conversation_id: str = Query(
         default=None,
         description="Conversation ID to clear. Omit to clear ALL history.",
-    )
+    ),
+    user: dict = Depends(get_current_user),
 ):
     """Delete conversation history."""
+    if conversation_id:
+        owner = await get_conversation_owner(conversation_id)
+        if owner is not None and owner != user["id"] and user.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Access denied to this conversation")
     await delete_history(conversation_id)
     if conversation_id:
         return DeleteResponse(

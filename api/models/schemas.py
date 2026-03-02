@@ -62,3 +62,31 @@ class ConversationMeta(BaseModel):
 class ConversationUpdate(BaseModel):
     title: Optional[str] = None
     tags: Optional[list[str]] = None
+
+
+# ── Auth schemas ──────────────────────────────────────────────────────────────
+
+
+class UserProfile(BaseModel):
+    id: int
+    username: str
+    display_name: str
+    role: str
+    created_at: datetime
+    last_login: Optional[datetime] = None
+
+
+class TokenResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
+    user: UserProfile
+
+
+class PreferenceResponse(BaseModel):
+    user_id: int
+    theme: str
+    model: str
+    tools_enabled: bool
+    system_prompt_override: Optional[str] = None
+    context_length: int

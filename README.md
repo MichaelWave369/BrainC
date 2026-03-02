@@ -6,6 +6,20 @@
 
 ## Changelog
 
+### v0.5.0 — Multi-User & Auth ✅
+- **JWT authentication** (`api/auth/`) — bcrypt password hashing (cost factor 12), HS256 JWT access tokens (24 h), cryptographically random refresh tokens (7-day, stored in SQLite). Secret key loaded from `.env`.
+- **Auth routes** (`api/auth/routes.py`) — `POST /auth/register`, `POST /auth/login`, `POST /auth/refresh`, `POST /auth/logout`, `GET /auth/me`. First user to register is automatically admin.
+- **Auth middleware** (`api/auth/middleware.py`) — `get_current_user()` dependency validates JWT and returns user object. `optional_user()` for public endpoints. `require_admin()` for admin-only routes. Login rate limiter: max 5 failed attempts per IP per 15 minutes (in-memory).
+- **Per-user conversation isolation** — all `/chat`, `/history`, `/conversations` routes require authentication. Conversations are scoped to `user_id`. Admins can view all with `?all=true`.
+- **Session management** (`api/auth/sessions.py`) — `GET /auth/sessions`, `DELETE /auth/sessions/{id}`, `DELETE /auth/sessions`. Sessions auto-expire after 7 days of inactivity. Max 5 active sessions per user (oldest evicted).
+- **User preferences** (`api/routes/preferences.py`) — `GET /preferences`, `PATCH /preferences`. Per-user: theme, model, tools_enabled, system_prompt_override, context_length. Applied to each Ollama request.
+- **Admin panel** (`ui/admin.html`) — user management table, create user form, delete user, reset password, system stats. Admin-only; redirects to login if not admin.
+- **Login UI** (`ui/login.html`) — username/password form with register toggle. JWT stored in module-level JS variable (not localStorage). Token handed off via sessionStorage on redirect.
+- **Updated main UI** — auth header on all API calls, user display + logout button in header, admin panel link (admin-only), 401 auto-redirect to login, token refresh on expiry.
+- **Database migration** (`scripts/migrate_v05.py`) — adds `user_id` to `messages` and `conversations`, creates `users`, `sessions`, `refresh_tokens`, `user_preferences` tables, assigns existing data to admin.
+- **Setup script updated** — generates `SECRET_KEY` on first run, runs migration, prompts for admin username/password on first launch.
+- **`.env.example`** — documents all required and optional environment variables.
+
 ### v0.4.0 — API Integrations ✅
 - **Web search** (`api/tools/search.py`) — SearXNG metasearch integration. Runs a local Docker container at port 8080; keyword-triggered automatically from chat messages. See `tools/searxng/` for setup.
 - **Code execution sandbox** (`api/tools/executor.py`) — AST-based safety checker blocks dangerous imports (`os`, `subprocess`, `socket`, …) and write-mode `open()` calls; executes Python in a subprocess with a 10-second timeout.
@@ -41,7 +55,7 @@
 - Custom `braincbrain` model via Ollama (qwen2.5:14b base).
 - Dark minimal web UI with conversation switching.
 
-BrainC v0.4.0 is a production-quality, privacy-first AI assistant that runs entirely on your hardware. No API keys. No cloud dependencies. No data leaving your machine. It pairs a custom-tuned Ollama model (built on `qwen2.5:14b`) with a streaming FastAPI backend and a clean, minimal web interface.
+BrainC v0.5.0 is a production-quality, privacy-first AI assistant that runs entirely on your hardware. No API keys. No cloud dependencies. No data leaving your machine. It pairs a custom-tuned Ollama model (built on `qwen2.5:14b`) with a streaming FastAPI backend, JWT-authenticated multi-user support, and a clean, minimal web interface.
 
 ---
 
@@ -77,9 +91,46 @@ cd BrainC
 2. Pulls `qwen2.5:14b` from Ollama's registry
 3. Builds the `braincbrain` model from the Modelfile
 4. Creates a Python virtual environment and installs dependencies
-5. Starts the FastAPI server and opens the UI
+5. Generates a `SECRET_KEY` and writes it to `.env`
+6. Runs the v0.5 database migration
+7. Prompts you to create an admin account on first run
+8. Starts the FastAPI server and opens the UI
 
 The UI will be available at **http://localhost:8000**.
+On first visit you'll be redirected to the login page — use the admin credentials you created during setup.
+
+---
+
+## Authentication
+
+### First-Run Setup
+
+`setup.sh` will prompt you to create an admin username and password on the first launch. You can also create users via the admin panel or the `/auth/register` endpoint.
+
+To disable public registration after setup:
+```bash
+# In .env:
+ALLOW_REGISTRATION=false
+```
+
+### Creating Users
+
+**Via admin panel:** `http://localhost:8000/admin` → Create User form.
+
+**Via API:**
+```bash
+curl -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "alice", "password": "secure123", "display_name": "Alice"}'
+```
+
+### Admin Panel
+
+Access at `http://localhost:8000/admin` (admin role required). Features:
+- User management table with last login and conversation count
+- Create new users
+- Delete users and reset passwords
+- System stats: total conversations, messages, users, model in use
 
 ---
 
@@ -127,11 +178,25 @@ Responses are streamed token-by-token from Ollama through the FastAPI `Streaming
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
+| `POST` | `/auth/register` | Register a new user |
+| `POST` | `/auth/login` | Login, returns access + refresh tokens |
+| `POST` | `/auth/refresh` | Exchange refresh token for new access token |
+| `POST` | `/auth/logout` | Invalidate refresh token |
+| `GET` | `/auth/me` | Current user profile |
+| `GET` | `/auth/sessions` | List active sessions |
+| `DELETE` | `/auth/sessions/{id}` | Revoke a session |
+| `DELETE` | `/auth/sessions` | Revoke all sessions |
+| `GET` | `/auth/users` | List all users (admin) |
+| `POST` | `/auth/users` | Create user (admin) |
+| `DELETE` | `/auth/users/{id}` | Delete user (admin) |
+| `POST` | `/auth/users/{id}/reset-password` | Reset user password (admin) |
+| `GET` | `/preferences` | Get current user's preferences |
+| `PATCH` | `/preferences` | Update preferences |
 | `POST` | `/chat` | Send a message, stream the response |
 | `GET` | `/history` | Get conversation history |
 | `DELETE` | `/history` | Clear conversation history |
 | `GET` | `/search?q=` | Semantic search over all past messages |
-| `GET` | `/conversations` | List all conversations with metadata |
+| `GET` | `/conversations` | List conversations (current user; admin: add `?all=true`) |
 | `PATCH` | `/conversations/{id}` | Update title or tags |
 | `DELETE` | `/conversations/{id}` | Delete a conversation and its messages |
 | `GET` | `/tools/search?q=` | Web search via SearXNG |
@@ -144,7 +209,7 @@ Responses are streamed token-by-token from Ollama through the FastAPI `Streaming
 | `POST` | `/tools/calendar` | Add calendar event |
 | `GET` | `/mcp/tools` | List MCP tools |
 | `POST` | `/mcp/call` | Call an MCP tool |
-| `GET` | `/health` | Health check |
+| `GET` | `/health` | Health check + system stats |
 | `GET` | `/docs` | Interactive API docs (Swagger UI) |
 
 **POST /chat — request body:**
@@ -327,10 +392,10 @@ python finetune/ab_test.py          # 5. compare base vs fine-tuned
 - Calendar and notes integration via local APIs
 - MCP (Model Context Protocol) server support
 
-**v0.5 — Multi-User / Auth**
-- Basic authentication for shared-machine deployments
-- Per-user conversation isolation
-- Session management
+**v0.5 — Multi-User / Auth** ✅ _complete_
+- JWT authentication with bcrypt passwords and refresh tokens
+- Per-user conversation isolation and session management
+- Admin panel, user preferences, login rate limiting
 
 **v1.0 — Production Hardening**
 - Proper logging and observability

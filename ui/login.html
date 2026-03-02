@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>BrainC — Sign In</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0d0d;
+      --surface: #141414;
+      --border: #2a2a2a;
+      --text: #e8e8e8;
+      --muted: #888;
+      --accent: #6e8efb;
+      --accent-hover: #8aa4ff;
+      --error: #f87171;
+      --success: #4ade80;
+      --input-bg: #1a1a1a;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 2.5rem 2rem;
+      width: 100%;
+      max-width: 380px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+
+    .logo-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+    }
+
+    .logo-sub {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .tab-row {
+      display: flex;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .tab {
+      flex: 1;
+      padding: 0.6rem 1rem;
+      background: transparent;
+      border: none;
+      color: var(--muted);
+      font-size: 0.875rem;
+      cursor: pointer;
+      transition: background 0.15s, color 0.15s;
+    }
+
+    .tab.active {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .form-group {
+      margin-bottom: 1rem;
+    }
+
+    label {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-bottom: 0.35rem;
+    }
+
+    input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 0.95rem;
+      padding: 0.65rem 0.85rem;
+      outline: none;
+      transition: border-color 0.15s;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+    }
+
+    .btn-primary {
+      width: 100%;
+      padding: 0.75rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      margin-top: 0.5rem;
+      transition: background 0.15s, opacity 0.15s;
+    }
+
+    .btn-primary:hover { background: var(--accent-hover); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .error-msg {
+      display: none;
+      background: rgba(248, 113, 113, 0.12);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+      color: var(--error);
+      border-radius: 8px;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+
+    .error-msg.visible { display: block; }
+
+    .footer {
+      text-align: center;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 1.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-title">BrainC</div>
+      <div class="logo-sub">PHI369 Labs · Local AI</div>
+    </div>
+
+    <div class="tab-row">
+      <button class="tab active" id="tab-login" onclick="switchTab('login')">Sign In</button>
+      <button class="tab" id="tab-register" onclick="switchTab('register')">Register</button>
+    </div>
+
+    <div id="error-msg" class="error-msg"></div>
+
+    <!-- Login form -->
+    <form id="login-form" onsubmit="handleLogin(event)">
+      <div class="form-group">
+        <label for="login-username">Username</label>
+        <input id="login-username" type="text" autocomplete="username" required />
+      </div>
+      <div class="form-group">
+        <label for="login-password">Password</label>
+        <input id="login-password" type="password" autocomplete="current-password" required />
+      </div>
+      <button class="btn-primary" type="submit" id="login-btn">Sign In</button>
+    </form>
+
+    <!-- Register form -->
+    <form id="register-form" style="display:none" onsubmit="handleRegister(event)">
+      <div class="form-group">
+        <label for="reg-username">Username</label>
+        <input id="reg-username" type="text" autocomplete="username" required minlength="3" maxlength="32" />
+      </div>
+      <div class="form-group">
+        <label for="reg-display">Display Name</label>
+        <input id="reg-display" type="text" autocomplete="name" required maxlength="64" />
+      </div>
+      <div class="form-group">
+        <label for="reg-password">Password</label>
+        <input id="reg-password" type="password" autocomplete="new-password" required minlength="8" />
+      </div>
+      <button class="btn-primary" type="submit" id="register-btn">Create Account</button>
+    </form>
+
+    <div class="footer">© 2026 Parallax — PHI369 Labs Division</div>
+  </div>
+
+  <script>
+    const API_BASE = "http://localhost:8000";
+
+    function switchTab(tab) {
+      const isLogin = tab === "login";
+      document.getElementById("login-form").style.display = isLogin ? "" : "none";
+      document.getElementById("register-form").style.display = isLogin ? "none" : "";
+      document.getElementById("tab-login").classList.toggle("active", isLogin);
+      document.getElementById("tab-register").classList.toggle("active", !isLogin);
+      clearError();
+    }
+
+    function showError(msg) {
+      const el = document.getElementById("error-msg");
+      el.textContent = msg;
+      el.classList.add("visible");
+    }
+
+    function clearError() {
+      const el = document.getElementById("error-msg");
+      el.classList.remove("visible");
+    }
+
+    function storeAndRedirect(data) {
+      // Store token in sessionStorage for the cross-page handoff only.
+      // app.js will read it into a module-level variable and clear it.
+      sessionStorage.setItem("braincToken", data.access_token);
+      sessionStorage.setItem("braincRefreshToken", data.refresh_token);
+      sessionStorage.setItem("braincUser", JSON.stringify(data.user));
+      window.location.replace("/");
+    }
+
+    async function handleLogin(e) {
+      e.preventDefault();
+      clearError();
+      const btn = document.getElementById("login-btn");
+      btn.disabled = true;
+
+      const username = document.getElementById("login-username").value.trim();
+      const password = document.getElementById("login-password").value;
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showError(data.detail || "Login failed");
+          return;
+        }
+        storeAndRedirect(data);
+      } catch (err) {
+        showError("Cannot connect to BrainC API. Is the server running?");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function handleRegister(e) {
+      e.preventDefault();
+      clearError();
+      const btn = document.getElementById("register-btn");
+      btn.disabled = true;
+
+      const username = document.getElementById("reg-username").value.trim();
+      const display_name = document.getElementById("reg-display").value.trim();
+      const password = document.getElementById("reg-password").value;
+
+      try {
+        const res = await fetch(`${API_BASE}/auth/register`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username, display_name, password }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showError(data.detail || "Registration failed");
+          return;
+        }
+        storeAndRedirect(data);
+      } catch (err) {
+        showError("Cannot connect to BrainC API. Is the server running?");
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    // If already authenticated, skip login
+    (function checkExisting() {
+      const token = sessionStorage.getItem("braincToken");
+      if (token) window.location.replace("/");
+    })();
+  </script>
+</body>
+</html>
