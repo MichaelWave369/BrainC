@@ -34,7 +34,15 @@ Thumbs.db
 
 # Logs
 *.log
-logs/
+logs/*
+!logs/.gitkeep
+
+# Backups
+backups/*
+!backups/.gitkeep
+
+# Memory (database is runtime data)
+memory/*.db
 
 # Fine-tuning outputs (large files — keep .gitkeep only)
 finetune/datasets/*.json
