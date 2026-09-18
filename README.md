@@ -7,13 +7,13 @@
 ╚═════╝ ╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝ ╚═════╝
 ```
 
-**A production-grade, fully local AI assistant.**
+**A fully local AI assistant from the BrainC lineage, now part of the Phi Commons.**
 Powered by Ollama · Built by PHI369 Labs · Parallax Division
 
 ![Version](https://img.shields.io/badge/version-1.0.0-blue)
 ![Python](https://img.shields.io/badge/python-3.11+-green)
-![License](https://img.shields.io/badge/license-Proprietary-red)
-![Status](https://img.shields.io/badge/status-Production-success)
+![License](https://img.shields.io/badge/license-MIT-blue)
+![Status](https://img.shields.io/badge/status-Phi%20Commons-success)
 
 ---
 
@@ -362,17 +362,29 @@ BrainC/
 
 ---
 
+## Phi Commons status
+
+BrainC is preserved as an open local-AI runtime and architectural ancestor of the modern PhiOS / PhiVessel stack.
+
+The historical v1.0 README described BrainC as production-grade. Public release does not imply that every dependency, deployment path, or security assumption has been freshly revalidated in 2026. Treat it as runnable software that should be reviewed for the environment in which it is deployed.
+
+The codebase remains valuable as a donor system for local inference, memory, tools, FastAPI/Ollama integration, and local-first interaction patterns.
+
+---
+
 ## Contributing
 
-Internal PHI369 Labs project. External contributions not accepted.
+External contributions are welcome under the terms in `CONTRIBUTING.md`.
 
 ---
 
 ## License
 
-Proprietary — © 2026 Parallax — PHI369 Labs Division
+Project-owned BrainC code and documentation are released under the **MIT License** unless otherwise noted.
 
-All rights reserved. Unauthorized use, reproduction, or distribution is strictly prohibited.
+Third-party dependencies, model weights, and external services retain their upstream licenses. See `THIRD_PARTY_NOTICES.md` and `MODEL_LICENSES.md`.
+
+The pre-Commons proprietary state is preserved in Git history and documented in `LICENSE_HISTORY.md`.
 
 ---
 
