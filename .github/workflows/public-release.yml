@@ -1,0 +1,72 @@
+name: Public Release Gate
+
+on:
+  push:
+    branches: [main, "license/**"]
+  pull_request:
+
+jobs:
+  hygiene:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compile Python sources
+        run: |
+          python -m compileall -q api finetune scripts
+
+      - name: Validate JSON configuration
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          for path in Path(".").rglob("*.json"):
+              if any(part.startswith(".") for part in path.parts):
+                  continue
+              json.loads(path.read_text(encoding="utf-8"))
+              print(f"validated {path}")
+          PY
+
+      - name: Enforce public-tree hygiene
+        run: |
+          python - <<'PY'
+          import re
+          import subprocess
+          from pathlib import Path
+
+          tracked = subprocess.check_output(
+              ["git", "ls-files"], text=True
+          ).splitlines()
+
+          forbidden_names = [
+              re.compile(r"(^|/)\.env($|\.)"),
+              re.compile(r"\.(pem|key|sqlite|sqlite3|db|gguf|safetensors|bin)$", re.I),
+              re.compile(r"(^|/)(id_rsa|id_ed25519)$", re.I),
+          ]
+
+          bad = [
+              path for path in tracked
+              if path != ".env.example"
+              and any(pattern.search(path) for pattern in forbidden_names)
+          ]
+
+          if bad:
+              raise SystemExit("forbidden tracked public files: " + ", ".join(bad))
+
+          license_text = Path("LICENSE").read_text(encoding="utf-8")
+          if not license_text.startswith("MIT License"):
+              raise SystemExit("LICENSE is not the Phi Commons MIT baseline")
+
+          readme = Path("README.md").read_text(encoding="utf-8")
+          if "license-Proprietary" in readme or "External contributions not accepted" in readme:
+              raise SystemExit("README still contains proprietary-era release language")
+
+          print("public-tree hygiene passed")
+          PY
