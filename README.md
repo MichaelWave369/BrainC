@@ -391,3 +391,18 @@ The pre-Commons proprietary state is preserved in Git history and documented in 
 *Built with obsession. Everything runs local.*
 
 **© 2026 Parallax — PHI369 Labs Division**
+
+
+## R9: Offline Skill Passport compatibility (passive)
+
+BrainC can **inspect**, but never automatically trust, PhiLearn Skill Passport v1 files using Python 3.11+ standard library:
+
+    python3 scripts/skill_passport_verify.py path/to/skill-passport.json
+
+This tool validates the 256 KB JSON envelope, locked no-authority policy, six frozen simulated R6 tool-action traces, and R7/R8 SHA-256 consistency checks. It returns REPLAY_PASS_UNTRUSTED or REPLAY_FAIL_UNTRUSTED, and a JSON report with authority NONE and permissions []. Exit 0 means replay consistency only, not an authenticated issuer or a safe agent.
+
+The checker is completely offline, outside FastAPI. It does **not** access or modify BrainC accounts, memory, model routing, tools, code execution, SQLite or Ollama; it adds no API endpoint. Run isolated tests with:
+
+    python3 -m unittest discover -s tests -p 'test_skill_passport_verify.py' -v
+
+An internally consistent transcript can still be fabricated and rehashed. This is not a signature, production competency certificate, tool authorization or internal model training. See PhiLearn interop/README.md for the frozen protocol.
