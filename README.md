@@ -483,3 +483,43 @@ All *approve* and *revoke* operations require explicit CLI invocation. Updates a
 **Invariant:** Every result carries authority NONE, permissions [], actionAllowed false. Even approval authorizes only *local passive evidence inspection*. This is not executable agent enrollment, an access token, deployment approval, a persisted learned skill, or a privilege escalation. No API endpoints, tool bridges, model calls, agent-memory writes, shell execution from evidence, key generation, network exchange, or runtime permission modifications were added by R11. No signing key is checked in.
 
 The registry can be edited by whoever controls the host, and local timestamps depend on that machine's clock. It therefore does not establish an independently verified human approver or trusted time. A more advanced release would require authenticated operator decisions, tamper-evident log storage, key lifecycle operations and a separate real-world action policy gate before permitting any tool execution.
+
+
+## R12: Tamper-evident, operator-signed governance event ledger
+
+R12 adds a **separate, offline operator event history** on top of R10 pinned-key provenance and R11 inspection-only enrollment. It is intentionally **not** wired into live BrainC or Vessie APIs, agents, model routing, memory, authorization or tooling.
+
+The event log's scope is limited to **inspection of evidence**. It records an operator-signed event for APPROVE_INSPECTION, REVOKE_INSPECTION, or EXPIRE_INSPECTION, with an incrementing sequence number, SHA-256 of the prior signed event, exact signed passport envelope hash, pinned issuer key fingerprint, model label, claim scope, reviewing operator's pinned Ed25519 key fingerprint, timestamp, and bounded expiry (at most seven days).
+
+A receiver independently validates every Ed25519 event signature using a **separate, operator-controlled R12 public-key trust store**, reconstructs the hash-linked chain, validates state transitions, compares the entire event chain with an **independently preserved checkpoint** (event count + head SHA-256), and then rechecks the underlying R10 signed passport and R6 synthetic replay. A changed, reordered, forged, truncated or stale log is rejected when the receiver has the authentic latest checkpoint. A signed revocation or explicit expiry is terminal for that exact enrollment.
+
+**Critical limitations:** The chain alone does not prevent deletion or rewriting. If an attacker can also replace the receiver's checkpoint or pinned keys, a local verification cannot detect all tampering. Keep the latest known head independently from the writable ledger, ideally replicated to independent protected storage. Ed25519 authenticates possession of a pinned operator signing key, not an independently verified human identity or honest historical action. Local timestamps are untrusted. All CLI operations create new files, not silent in-place overwrites. Private operator keys must be generated and stored outside Git or synced folders.
+
+**Invariant:** Even a valid checkpointed and operator-approved report returns authority NONE, permissions [], actionAllowed false. It authorizes *passive evidence inspection only*. No runtime permissions, agent tool grants, live deployment approval, memory-writing, or model execution exist in R12.
+
+### Operator commands
+
+The full offline signing and event-authoring CLI is included with PhiLearn:
+
+    node interop/r12-cli.mjs operator-keygen /secure/outside-repo/dir operator.alpha
+    node interop/r12-cli.mjs init new-ledger.json new-checkpoint.json
+    node interop/r12-cli.mjs approve signed.json R10-pinned-keys.json R12-operator-keys.json ledger.json operator-private.pem operator.alpha 24 prior-checkpoint.json next-ledger.json next-checkpoint.json --confirm
+    node interop/r12-cli.mjs revoke enrollment-sha256 R12-operator-keys.json ledger.json operator-private.pem operator.alpha prior-checkpoint.json next-ledger.json next-checkpoint.json --confirm
+    node interop/r12-cli.mjs expire enrollment-sha256 R12-operator-keys.json ledger.json operator-private.pem operator.alpha prior-checkpoint.json next-ledger.json next-checkpoint.json --confirm
+    node interop/r12-cli.mjs check signed.json R10-pinned-keys.json R12-operator-keys.json ledger.json independent-checkpoint.json
+
+The operator-keygen command creates an **unencrypted** mode-0600 private key PEM and a candidate public trust-store JSON. Recipients must verify and pin the public key through a separate authenticated process before accepting it. Do not commit either real private keys or approvals as authorization credentials. Explicit event expiry is optional because elapsed lease expiry is enforced during verification even without a new event.
+
+BrainC has its own Python 3.11+ standard-library/cryptography implementation in scripts/r12_governance.py. SuperPhiVessel includes a passive read-only Node verifier in interop/r12-check.mjs, with the matching shared Node event-chain implementation. These implementations deliberately **do not connect** the ledger to real privileges.
+
+Only signature-chain consistency, separately known head continuity, and synthetic-evidence replay are established. This remains a research governance audit, not a trustworthy external authorization system.
+
+
+### BrainC Python CLI
+
+    python3 scripts/r12_governance.py init ledger.json head.json
+    python3 scripts/r12_governance.py approve signed.json R10-trust.json R12-operator-trust.json ledger.json private-key.pem operator.alpha 24 head.json new-ledger.json new-head.json --confirm
+    python3 scripts/r12_governance.py revoke enrollment-id R12-operator-trust.json ledger.json private-key.pem operator.alpha head.json new-ledger.json new-head.json --confirm
+    python3 scripts/r12_governance.py check signed.json R10-trust.json R12-operator-trust.json ledger.json independently-saved-head.json
+
+This CLI requires the already-used Python cryptography dependency. Signing keys are operator-provided local files and never loaded into BrainC's FastAPI, SQLite or agent tools.
