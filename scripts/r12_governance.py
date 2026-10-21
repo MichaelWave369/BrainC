@@ -302,6 +302,9 @@ def append_approval(signed: Any, passport_trust: Any, operator_trust: Any,
         raise ValueError("Prior independently retained checkpoint mismatch.")
     if len(ledger["entries"]) and checkpoint is None:
         raise ValueError("Existing chain requires prior operator checkpoint.")
+    if type(signed) is not dict or not iso(signed.get("signedAt")) or \
+            utc(at) < utc(signed["signedAt"]):
+        raise ValueError("Operator review cannot precede claimed R10 signing timestamp.")
     source = verify_signed_object(signed, passport_trust)
     if not source["signatureValid"] or not source["sourceReplayConsistent"] or \
             not source["keyPinned"]:
