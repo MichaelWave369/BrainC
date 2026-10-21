@@ -406,3 +406,39 @@ The checker is completely offline, outside FastAPI. It does **not** access or mo
     python3 -m unittest discover -s tests -p 'test_skill_passport_verify.py' -v
 
 An internally consistent transcript can still be fabricated and rehashed. This is not a signature, production competency certificate, tool authorization or internal model training. See PhiLearn interop/README.md for the frozen protocol.
+
+
+## R10: Optional Ed25519 signed Skill Passport provenance
+
+R10 adds a **read-only offline signature-verification layer** to the existing R8/R9 portable Skill Passport. The outer format is philearn.signed-skill-passport.v1, enclosing an unchanged R8 philearn.skill-passport.v1 record. Signature checking is optional and requires an independently operator-pinned public key; **receiving a public key from the sender is not sufficient authentication**.
+
+### Operator workflow (Node.js 20+)
+
+Run on a trusted operator-owned machine:
+
+    node interop/r10-cli.mjs keygen /secure/operator-dir field-lab
+    node interop/r10-cli.mjs sign passport.json /secure/operator-dir/issuer.private.pem field-lab signed.json
+
+Keygen creates a private Ed25519 PEM and a candidate public trust file. The **unencrypted private key** is saved with permission mode 0600, but must be protected using local access controls, excluded from Git, and kept out of shared or cloud-synced directories. For higher-risk signing prefer hardware-backed key protection. The recipient separately authenticates the issuer identity and public key fingerprint through an out-of-band channel, then pins that key in their own local trust-store copy. A key delivered along with an untrusted passport must not be automatically accepted.
+
+Verify using an already authenticated receiver-controlled local trust store:
+
+    node interop/r10-cli.mjs verify signed.json /local/operator-pinned-trust.json
+
+Optional --review is an *explicit inspection acknowledgment*, not a permission change. Unknown keys, revoked/inactive keys, wrong scope, modified payloads, forged signatures or missing evidence fail closed. Without a trust store the signature remains UNPINNED_SIGNATURE. Key revocation is manual at the receiver and never auto-synchronized.
+
+The Ed25519 signature covers a versioned domain separator, issuer ID, SHA-256 DER-SPKI public key fingerprint, claimed signing time and validated R8 passport payload digest. The verifier always validates the six frozen synthetic R6 tool traces and the R7/R8 hashes *before* accepting provenance.
+
+### Consumers and boundaries
+
+- PhiLearn: offline Node 20+ signer/verifier and conformance checks.
+- BrainC: offline Python 3.11+ verifier using cryptography; no FastAPI integration.
+- SuperPhiVessel: offline Node 20+ verifier; no routing or local-console integration.
+
+In all outcomes, even after a valid pinned-key signature and manual inspection: authority NONE, permissions [], and actionAllowed false. A valid signature confirms use of the matching operator-pinned private key, **not** the historic truth of an editable synthetic benchmark, real-world model ability, changes to weights, an externally attested clock, or permission to execute actions. No signing keys are committed to the repository.
+
+### BrainC invocation
+
+    python3 scripts/r10_verify_signed.py signed.json operator-pinned-trust.json
+
+Install the Python cryptography library before using the standalone verifier. It is also a dependency of BrainC via python-jose[cryptography].

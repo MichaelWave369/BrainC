@@ -1,0 +1,20 @@
+name: BrainC R10 Ed25519 Signed Passport Gate
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  offline-signature-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install offline signature-verification dependency
+        run: python3 -m pip install 'cryptography>=42,<47'
+      - name: Verify source replay and signed evidence gates
+        run: python3 -m unittest discover -s tests -p 'test_r10_verify_signed.py' -v
+      - name: Syntax-check receiver
+        run: python3 -m py_compile scripts/r10_verify_signed.py
