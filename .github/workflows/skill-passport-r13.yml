@@ -1,0 +1,24 @@
+name: BrainC R13 Cross-Runtime Witness Parity
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  node-to-python-proof-parity:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 -m pip install 'cryptography>=42,<47'
+      - name: Byte-parity of one Node R8/R10/R12/R13 signed fixture in Python
+        run: python3 -m unittest discover -s tests -p 'test_r13_cross_runtime.py' -v
+      - name: Python passive witness CLI syntax
+        run: python3 -m py_compile scripts/r13_witness.py scripts/r13_check.py
+      - name: Generate identical fixture without publishing test signing seeds as credentials
+        run: node interop/r13-fixture.mjs > /dev/null
