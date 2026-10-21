@@ -442,3 +442,44 @@ In all outcomes, even after a valid pinned-key signature and manual inspection: 
     python3 scripts/r10_verify_signed.py signed.json operator-pinned-trust.json
 
 Install the Python cryptography library before using the standalone verifier. It is also a dependency of BrainC via python-jose[cryptography].
+
+
+## R11: Governed agent evidence enrollment (inspection-only)
+
+R11 keeps **signing-key identity, demonstrated synthetic benchmark evidence, and operational permissions** as three different concepts. The last remains **completely outside this module**. The receiver cannot enroll anything for action execution, even when every test succeeds.
+
+A standalone receiver-controlled **inspection enrollment registry** records the operator's explicit approval to inspect one exact R10 Ed25519 signed R8 Skill Passport. The review entry is bound to the entire signed envelope's SHA-256, issuer ID, signing key fingerprint, model label, the exact R6 synthetic-only scope, the reviewing operator, and a short lease (1–168 hours). The system replays the six synthetic R6 traces and validates R10's operator-pinned public key every time. The receiving machine's local registry is not a cryptographic credential. Keep it outside shared/untrusted locations.
+
+### Offline operator workflow
+
+Node.js 20+ (PhiLearn or SuperPhiVessel):
+
+    node interop/r11-cli.mjs init local-registry.json
+    node interop/r11-cli.mjs check signed.json /local/pinned-keys.json local-registry.json
+    node interop/r11-cli.mjs approve signed.json /local/pinned-keys.json local-registry.json operator-id 24 reviewed-registry.json
+    node interop/r11-cli.mjs check signed.json /local/pinned-keys.json reviewed-registry.json
+
+To revoke, copy the enrollmentId from your locally approved registry and run:
+
+    node interop/r11-cli.mjs revoke reviewed-registry.json <enrollment-sha256> operator-id revoked-registry.json
+
+BrainC Python 3.11+ with cryptography installed:
+
+    python3 scripts/r11_enrollment.py init local-registry.json
+    python3 scripts/r11_enrollment.py approve signed.json /local/pinned-keys.json local-registry.json operator-id 24 reviewed-registry.json
+    python3 scripts/r11_enrollment.py check signed.json /local/pinned-keys.json reviewed-registry.json
+    python3 scripts/r11_enrollment.py revoke reviewed-registry.json <enrollment-sha256> operator-id revoked-registry.json
+
+All *approve* and *revoke* operations require explicit CLI invocation. Updates are written to new files rather than silently overwriting existing registries; operators decide whether and when to replace the active receiver-controlled file.
+
+### Fail-closed decision states
+
+- SIGNATURE_REJECTED: R10 signer pin or R8/R9 source replay failed.
+- REGISTRY_REJECTED / NOT_ENROLLED: absent, malformed, mismatched, or unapproved receiver-local registry.
+- NOT_YET_VALID / EXPIRED: local enrollment clock outside the bounded lease.
+- REVOKED: operator revoked this exact envelope; same envelope cannot be silently renewed.
+- APPROVED_FOR_INSPECTION_ONLY: exact payload, pinned key, valid evidence replay, and receiver's manually approved unexpired inspection lease.
+
+**Invariant:** Every result carries authority NONE, permissions [], actionAllowed false. Even approval authorizes only *local passive evidence inspection*. This is not executable agent enrollment, an access token, deployment approval, a persisted learned skill, or a privilege escalation. No API endpoints, tool bridges, model calls, agent-memory writes, shell execution from evidence, key generation, network exchange, or runtime permission modifications were added by R11. No signing key is checked in.
+
+The registry can be edited by whoever controls the host, and local timestamps depend on that machine's clock. It therefore does not establish an independently verified human approver or trusted time. A more advanced release would require authenticated operator decisions, tamper-evident log storage, key lifecycle operations and a separate real-world action policy gate before permitting any tool execution.
