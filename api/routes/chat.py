@@ -1,13 +1,16 @@
 import asyncio
-import json
 import re
 
-import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from api.auth.middleware import get_current_user
 from api.config import MAX_TURNS_BEFORE_SUMMARY, TOP_K_SEMANTIC
+from api.core.queue import active_model_name
+from api.core.inference import (
+    InferenceError, build_chat_messages, complete_chat, preferred_chat_model,
+    runtime_from_env, stream_chat,
+)
 from api.models.schemas import (
     ChatMessage,
     ChatRequest,
@@ -33,26 +36,16 @@ from api.routes.memory import (
 
 router = APIRouter()
 
-OLLAMA_BASE_URL = "http://localhost:11434"
-MODEL_NAME = "braincbrain"
-
-
-# ── Internal Ollama call (non-streaming, used for summarization) ────────────
+# ── Summarization uses the same explicitly selected local inference backend. ──
 
 
 async def _call_ollama(messages: list[dict]) -> str:
-    """Call Ollama synchronously and return the full response text."""
-    async with httpx.AsyncClient(timeout=120.0) as client:
-        response = await client.post(
-            f"{OLLAMA_BASE_URL}/api/chat",
-            json={"model": MODEL_NAME, "messages": messages, "stream": False},
-        )
-        if response.status_code != 200:
-            raise HTTPException(
-                status_code=502,
-                detail=f"Ollama error during summarization: {response.text}",
-            )
-        return response.json().get("message", {}).get("content", "")
+    """Legacy private helper name; never silently falls back to Ollama."""
+    runtime = runtime_from_env()
+    try:
+        return await complete_chat(active_model_name(), messages, runtime=runtime)
+    except InferenceError as exc:
+        raise HTTPException(status_code=502, detail="Selected local model unavailable for summarization") from exc
 
 
 # ── Context window management ───────────────────────────────────────────────
@@ -216,7 +209,8 @@ async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
 
     # Load per-user preferences (model, tools_enabled override, etc.)
     prefs = await get_preferences(user_id)
-    model_name = prefs.get("model", MODEL_NAME)
+    runtime = runtime_from_env()
+    model_name = preferred_chat_model(prefs.get("model"), active_model_name())
 
     # 1. Ensure conversation metadata exists
     await ensure_conversation(conversation_id, request.message, user_id)
@@ -284,6 +278,14 @@ async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
 
     messages.append({"role": "user", "content": request.message})
 
+    # PhiServe gets the tracked BrainC persona from the repo, rather than
+    # assuming a GGUF file contains the Ollama Modelfile's SYSTEM prompt.
+    if runtime.is_phiserve:
+        messages = build_chat_messages(
+            runtime, messages, with_identity=True,
+            user_override=prefs.get("system_prompt_override"),
+        )
+
     # 8. Persist the user message with its embedding
     await save_message("user", request.message, conversation_id, query_embedding, user_id)
 
@@ -299,45 +301,25 @@ async def chat(request: ChatRequest, user: dict = Depends(get_current_user)):
     full_response_parts: list[str] = []
 
     async def collecting_generator():
-        async with httpx.AsyncClient(timeout=None) as client:
-            async with client.stream(
-                "POST",
-                f"{OLLAMA_BASE_URL}/api/chat",
-                json={"model": model_name, "messages": messages, "stream": True},
-            ) as response:
-                if response.status_code != 200:
-                    error_body = await response.aread()
-                    yield (
-                        f"[ERROR] Ollama returned {response.status_code}: "
-                        f"{error_body.decode()}"
-                    )
-                    return
+        try:
+            async for content in stream_chat(model_name, messages, runtime=runtime):
+                full_response_parts.append(content)
+                yield content
+            full_response = "".join(full_response_parts)
+            if full_response:
+                assistant_embedding = await asyncio.to_thread(embed_text, full_response)
+                await save_message(
+                    "assistant",
+                    full_response,
+                    conversation_id,
+                    assistant_embedding,
+                    user_id,
+                )
+        except InferenceError:
+            # Stream may have begun: never store a partial assistant answer as
+            # complete, never expose a bearer token or upstream response body.
+            yield "[ERROR] Selected local model is unavailable or returned an incomplete response."
 
-                async for line in response.aiter_lines():
-                    if not line:
-                        continue
-                    try:
-                        chunk = json.loads(line)
-                        content = chunk.get("message", {}).get("content", "")
-                        if content:
-                            full_response_parts.append(content)
-                            yield content
-                        if chunk.get("done"):
-                            full_response = "".join(full_response_parts)
-                            if full_response:
-                                assistant_embedding = await asyncio.to_thread(
-                                    embed_text, full_response
-                                )
-                                await save_message(
-                                    "assistant",
-                                    full_response,
-                                    conversation_id,
-                                    assistant_embedding,
-                                    user_id,
-                                )
-                            break
-                    except json.JSONDecodeError:
-                        continue
 
     return StreamingResponse(
         collecting_generator(),

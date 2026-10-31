@@ -8,7 +8,6 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-import httpx
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
@@ -20,7 +19,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 
 from api.auth.routes import router as auth_router
 from api.auth.sessions import router as sessions_router
-from api.config import ENV, OLLAMA_BASE_URL
+from api.config import ENV
+from api.core.inference import InferenceError, initial_model_name, list_model_aliases, runtime_from_env
 from api.core.audit import ensure_audit_table
 from api.core.backup import router as backups_router, start_backup_scheduler
 from api.core.errors import register_error_handlers
@@ -58,17 +58,19 @@ async def lifespan(app: FastAPI):
     await ensure_audit_table()
 
     # 4. Set initial active model from env
-    model_from_env = os.getenv("ACTIVE_MODEL", "braincbrain")
+    model_from_env = initial_model_name()
     set_active_model(model_from_env)
     log.info("active_model_loaded", model=model_from_env)
 
-    # 5. Pre-warm Ollama with a silent ping
+    # 5. Probe only the selected inference provider. Never use another runtime.
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            await client.get(f"{OLLAMA_BASE_URL}/api/tags")
-        log.info("ollama_prewarm_ok", url=OLLAMA_BASE_URL)
-    except Exception as exc:
-        log.warning("ollama_prewarm_failed", error=str(exc))
+        aliases = await list_model_aliases()
+        log.info("local_model_catalog_ok", provider=runtime_from_env().provider,
+                 count=len(aliases))
+    except InferenceError:
+        # Missing secret or stopped runtime remains a warning; no automatic
+        # switch to Ollama or external inference.
+        log.warning("local_model_catalog_unavailable")
 
     # 6. Start backup scheduler
     backup_task = start_backup_scheduler()
