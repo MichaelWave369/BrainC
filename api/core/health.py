@@ -8,10 +8,11 @@ import time
 from pathlib import Path
 
 import aiosqlite
-import httpx
 from fastapi import APIRouter, Depends
 
 from api.auth.middleware import require_admin
+from api.core.inference import InferenceError, list_model_aliases, runtime_from_env
+from api.core.queue import active_model_name
 from api.core.queue import inference_queue
 from api.routes.memory import DB_PATH
 
@@ -19,7 +20,6 @@ router = APIRouter(tags=["health"])
 
 _START_TIME = time.monotonic()
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 MEMORY_DIR = Path(__file__).parent.parent.parent / "memory"
 WORKSPACE_DIR = Path(__file__).parent.parent.parent / "workspace"
 
@@ -47,26 +47,20 @@ async def health_ready():
     checks: dict = {}
     overall = "ok"
 
-    # 1. Ollama
+    # 1. Selected local inference runtime (never retries another provider).
     try:
-        async with httpx.AsyncClient(timeout=5.0) as client:
-            r = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
-            if r.status_code == 200:
-                models = [m["name"] for m in r.json().get("models", [])]
-                # Accept any model that starts with "braincbrain"
-                loaded = any(m.startswith("braincbrain") for m in models)
-                checks["ollama"] = {
-                    "status": "ok" if loaded else "warning",
-                    "models": models,
-                    "braincbrain_loaded": loaded,
-                }
-                if not loaded:
-                    overall = "degraded"
-            else:
-                checks["ollama"] = {"status": "error", "detail": f"HTTP {r.status_code}"}
-                overall = "degraded"
-    except Exception as exc:
-        checks["ollama"] = {"status": "error", "detail": str(exc)}
+        runtime = runtime_from_env()
+        aliases = await list_model_aliases(runtime)
+        loaded = active_model_name() in aliases
+        checks[runtime.backend] = {
+            "status": "ok" if loaded else "warning",
+            "models": aliases,
+            "configured_model_registered": loaded,
+        }
+        if not loaded:
+            overall = "degraded"
+    except InferenceError:
+        checks["local_inference"] = {"status": "error", "detail": "Configured backend unavailable"}
         overall = "degraded"
 
     # 2. Database

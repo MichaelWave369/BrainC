@@ -7,7 +7,7 @@ import re
 from datetime import datetime, timezone
 from pathlib import Path
 
-import httpx
+from api.core.inference import InferenceError, list_model_aliases
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
@@ -18,7 +18,6 @@ from api.core.queue import active_model_name, set_active_model
 
 router = APIRouter(prefix="/models", tags=["models"])
 
-OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 ENV_FILE = Path(__file__).parent.parent.parent / ".env"
 
 
@@ -26,14 +25,11 @@ ENV_FILE = Path(__file__).parent.parent.parent / ".env"
 
 
 async def _list_ollama_models() -> list[str]:
+    """Original route contract, selected local model catalog underneath."""
     try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            r = await client.get(f"{OLLAMA_BASE_URL}/api/tags")
-            r.raise_for_status()
-            return [m["name"] for m in r.json().get("models", [])]
-    except Exception as exc:
-        from api.core.errors import OllamaError
-        raise OllamaError(detail=str(exc))
+        return await list_model_aliases()
+    except InferenceError as exc:
+        raise HTTPException(status_code=502, detail="Selected local model catalog unavailable") from exc
 
 
 def _persist_model_to_env(model: str) -> None:
@@ -59,7 +55,7 @@ def _persist_model_to_env(model: str) -> None:
 
 @router.get("")
 async def list_models():
-    """List all available Ollama models."""
+    """List all model aliases from the explicitly selected local runtime."""
     models = await _list_ollama_models()
     return {"models": models, "active": active_model_name()}
 
@@ -81,7 +77,7 @@ async def switch_model(body: SwitchModelRequest, admin: dict = Depends(require_a
     if body.model not in available:
         raise HTTPException(
             status_code=400,
-            detail=f"Model '{body.model}' not found in Ollama. Available: {available}",
+            detail="Requested model alias is not registered with the selected local runtime.",
         )
 
     previous = active_model_name()
