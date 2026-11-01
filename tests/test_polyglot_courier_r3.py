@@ -11,7 +11,7 @@ from api.core.polyglot_courier import open_brainc_courier
 
 FIXTURES = Path(__file__).parent / "fixtures"
 SAMPLE = (FIXTURES / "polyglot-r3-synthetic.json").read_text()
-PUBLIC = (FIXTURES / "polyglot-r3-public.pem").read_bytes()
+PUBLIC = (FIXTURES / "polyglot-r3-public-key.txt").read_bytes()
 PASSWORD = "synthetic-test-phrase-not-secret"
 WHEN = 1820000001
 
