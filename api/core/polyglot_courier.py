@@ -7,6 +7,7 @@ Only operator-supplied synthetic files until independently security reviewed.
 from __future__ import annotations
 
 import base64
+import binascii
 import json
 import re
 import time
@@ -103,5 +104,5 @@ def open_brainc_courier(
             raise ValueError("oversized plaintext")
         return parse_brainc_polyglot(content.decode("utf-8"))
     except (ValueError, TypeError, UnicodeError, KeyError, InvalidSignature,
-            InvalidTag, OverflowError) as exc:
+            InvalidTag, OverflowError, binascii.Error) as exc:
         raise PermissionError(_DENIED) from exc
