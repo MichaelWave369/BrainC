@@ -1,0 +1,10 @@
+{
+  "schema": "phi.memory.polyglot.courier.r3",
+  "reader": "brainc",
+  "issued_at": 1820000000,
+  "expires_at": 1820000120,
+  "salt": "uSFhndeXqunHTEHAM0ajrg",
+  "iv": "GFnKect60339HFz9",
+  "ciphertext": "5_qzR3vhIojp2RXToSgeTavR72BqP88iacpWOw5xMFrqTgNojX7omGqmKlEIY-p88DKTOqKyyjOw_bOFLNkp_S5YcyKCD_zv6h-rWzrISE7MgEUgWlUv6W_6fDqoYSK9n7Gwuh4SuV_9oA82B0YlDD5d16FMjyGC68hCc3-wvKbK5uPf0r_gm0R0XLqlznNRNFE2fwDDgH2ZdJG9hEd07WXyt6Waxer3Jdcn8-AGTYkx1LDb4ZVY6qnfAGDnT4VX4RR3Aeqxr0uYght_e9ryKdi7WKSBP88lWlVwc3Ti4NeRMxeRfhcycSquXWNMUF2WozEeS6Ni1KCdpWXlGtsHcOk62HT02nNKiRKzhkoujSC1nE4rZ2HzUl_3ObVUgJqyV4R2KCowLcmxw68swmEyunWGEX9vlh7PdS2Da3AtJH0zkM1sb6DrKJlwIq-RwwuRFH_jzUsGXTUY_-Q8eAwGSyWwOHtgpqK_nx6MtGLcnwdaTNgrbAgjWN-UBiqEbAJAhPN3k8UMzpAYio9YuJW_3ZiKaSCQ1VqpvQop_RUNwbHNIlozTFWIJIbSF8D7R1iPbH_Fbbz2X1j8LINLlNLoqiHaUg6y1l57-mHJVckkJoIYx9FV2eqb9PBfmur440ImA08URAU9re0hi9ArOLMYXVjOdjjImvk",
+  "signature": "Jv2Paf6k2ZI56QoCgzLaLbZb2RuD3sP9okzQAVJlDCpo5yCAmFqJ0Kwr9eST26QBYD-G_gX2PppcJtucYoxezw"
+}
